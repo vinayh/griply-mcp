@@ -70,6 +70,16 @@ web_modules/
 .env.*
 !.env.example
 
+# Auth & Firebase config
+auth.json
+src/firebase/config.ts
+
+# One-off discovery/debug scripts (contain keys)
+scripts/
+
+# Development planning docs (contain project-specific IDs)
+PLAN.md
+
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache

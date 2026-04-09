@@ -1,0 +1,27 @@
+{
+  "name": "griply-mcp",
+  "version": "0.2.0",
+  "description": "MCP server for Griply goal/task/habit management via Firebase",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "griply-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "firebase": "^12.11.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.4"
+  }
+}

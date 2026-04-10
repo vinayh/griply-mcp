@@ -146,6 +146,14 @@ describe("tasks (read)", () => {
     expect(result).toBeInstanceOf(Array);
   });
 
+  it("unknown filter falls back to default (returns uncompleted tasks)", async () => {
+    const result = await tasks.listTasks(uid, { filter: "unknown_filter" });
+    expect(result).toBeInstanceOf(Array);
+    for (const t of result) {
+      expect(t.isCompleted).toBe(false);
+    }
+  });
+
   it("nonexistent goalId returns empty array", async () => {
     const result = await tasks.listTasks(uid, { filter: "all", goalId: "nonexistent_goal_id" });
     expect(result).toEqual([]);
@@ -191,6 +199,14 @@ describe("habits (read)", () => {
       /not found|permission/i
     );
   });
+
+  it("addHabitOccurrence throws 'no schedules' on a todo task", async () => {
+    // A todo task has schedules: null, so it should hit the "no schedules" branch
+    const t = await tasks.createTask(uid, { name: "test-not-a-habit" });
+    await expect(habits.addHabitOccurrence({ habitId: t.id })).rejects.toThrow(/no schedules/i);
+    await tasks.deleteTask(t.id);
+  });
+
 });
 
 // ── Summary ──
@@ -331,6 +347,12 @@ describe("task writes", () => {
     expect(found!.deadline).toBe("2026-07-20T22:59:59.999Z");
 
     await tasks.deleteTask(t.id);
+  });
+
+  it("update_task with nonexistent ID throws not found", async () => {
+    await expect(tasks.updateTask("nonexistent_task_id_12345", { name: "x" })).rejects.toThrow(
+      /not found|permission/i
+    );
   });
 
   it("delete nonexistent ID throws permission error", async () => {

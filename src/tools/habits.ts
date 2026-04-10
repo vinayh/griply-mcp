@@ -9,11 +9,13 @@ export function registerHabitTools(server: McpServer): void {
     async () => jsonResult(await habits.listHabits(await ensureAuth()))
   );
 
-  server.tool("add_habit_occurrence", "Add a habit occurrence for a date", addHabitOccurrenceSchema.shape,
-    async (params) => {
-      await ensureAuth();
-      await habits.addHabitOccurrence(params);
-      return textResult(`Habit occurrence added for ${params.habitId} on ${params.date || "today"}`);
-    }
-  );
+  // TODO: add_habit_occurrence disabled — Firestore security rules block updateDoc on habit schedules.
+  // Needs read-modify-write (getDocFromServer + setDoc) approach like updateTask.
+  // server.tool("add_habit_occurrence", "Add a habit occurrence for a date", addHabitOccurrenceSchema.shape,
+  //   async (params) => {
+  //     await ensureAuth();
+  //     await habits.addHabitOccurrence(params);
+  //     return textResult(`Habit occurrence added for ${params.habitId} on ${params.date || "today"}`);
+  //   }
+  // );
 }

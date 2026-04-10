@@ -282,7 +282,55 @@ describe("task writes", () => {
 
     const all = await tasks.listTasks(uid, { filter: "all" });
     expect(all.find((x) => x.id === t.id)).toBeUndefined();
-    // completed tasks can't be deleted due to security rules
+
+    // Security rules block deleteTask on completed tasks, so use deleteDoc directly
+    await deleteDoc(doc(getDb(), "tasks", t.id));
+  });
+
+  it("update_task changes name, priority, dates, and timeslot", async () => {
+    const t = await tasks.createTask(uid, {
+      name: "test-update-task",
+      priority: "low",
+      scheduledDate: "2026-05-01",
+      deadline: "2026-05-10",
+      startTime: "09:00",
+      duration: 30,
+    });
+    await sleep(500);
+
+    // Update all fields in one call
+    await tasks.updateTask(t.id, {
+      name: "test-updated-name",
+      priority: "High",
+      scheduledDate: "2026-06-01",
+      deadline: "2026-06-15",
+      startTime: "14:30",
+      duration: 60,
+    });
+
+    const all = await tasks.listTasks(uid, { filter: "all" });
+    const found = all.find((x) => x.id === t.id);
+    expect(found).toBeDefined();
+    expect(found!.name).toBe("test-updated-name");
+    expect(found!.priority).toBe("high");
+    expect(found!.scheduledDate).toBe("2026-06-01T00:00:00.000Z");
+    expect(found!.deadline).toBe("2026-06-15T22:59:59.999Z");
+    expect(found!.startTime).toBe("14:30");
+    expect(found!.duration).toBe(60);
+
+    await tasks.deleteTask(t.id);
+  });
+
+  it("created task deadline is readable via deadlineDeadline field", async () => {
+    // Verifies that createTask writes to deadlineDeadline (the field Griply app reads)
+    const t = await tasks.createTask(uid, { name: "test-deadline-field", deadline: "2026-07-20" });
+
+    const all = await tasks.listTasks(uid, { filter: "all" });
+    const found = all.find((x) => x.id === t.id);
+    expect(found).toBeDefined();
+    expect(found!.deadline).toBe("2026-07-20T22:59:59.999Z");
+
+    await tasks.deleteTask(t.id);
   });
 
   it("delete nonexistent ID throws permission error", async () => {

@@ -1,6 +1,7 @@
 import {
   collection,
   doc,
+  getDocFromServer,
   getDocs,
   setDoc,
   updateDoc,
@@ -143,7 +144,9 @@ export async function createTask(
     endStrategy: params.deadline
       ? { completionCount: null, deadline: dateToDeadlineTimestamp(params.deadline) }
       : null,
-    deadlineDeadline: null, // legacy field, kept for schema compatibility
+    deadlineDeadline: params.deadline
+      ? dateToDeadlineTimestamp(params.deadline)
+      : null,
     goalId: params.goalId || null,
     lifeAreaId: params.lifeAreaId || null,
     parentIds: params.parentTaskId ? [params.parentTaskId] : null,
@@ -174,6 +177,58 @@ export async function createTask(
     lifeAreaId: params.lifeAreaId,
     isCompleted: false,
   };
+}
+
+export async function updateTask(
+  taskId: string,
+  params: {
+    name?: string;
+    taskDescription?: string;
+    priority?: string;
+    scheduledDate?: string;
+    startTime?: string;
+    duration?: number;
+    deadline?: string;
+    goalId?: string;
+    lifeAreaId?: string;
+  }
+): Promise<void> {
+  const docRef = doc(getDb(), "tasks", taskId);
+  const snap = await getDocFromServer(docRef);
+  if (!snap.exists()) throw new Error(`Task ${taskId} not found`);
+
+  const data = snap.data();
+
+  if (params.name !== undefined) data.name = params.name;
+  if (params.taskDescription !== undefined) data.description = params.taskDescription || null;
+  if (params.priority !== undefined) data.priority = params.priority.toLowerCase();
+  if (params.scheduledDate !== undefined) data.startDate = dateToTimestamp(params.scheduledDate);
+  if (params.deadline !== undefined) {
+    const dl = dateToDeadlineTimestamp(params.deadline);
+    data.deadlineDeadline = dl;
+    if (data.endStrategy) {
+      data.endStrategy.deadline = dl;
+    } else {
+      data.endStrategy = { completionCount: null, deadline: dl };
+    }
+  }
+  if (params.goalId !== undefined) data.goalId = params.goalId || null;
+  if (params.lifeAreaId !== undefined) data.lifeAreaId = params.lifeAreaId || null;
+
+  if (params.startTime !== undefined || params.duration !== undefined) {
+    const existing = (data.timeslot as Record<string, unknown>) || {};
+    data.timeslot = {
+      startTime: params.startTime !== undefined
+        ? (params.startTime ? timeStringToMs(params.startTime) : null)
+        : (existing.startTime ?? null),
+      duration: params.duration !== undefined
+        ? (params.duration ? params.duration * MS_PER_MINUTE : null)
+        : (existing.duration ?? null),
+    };
+  }
+
+  data.updatedAt = serverTimestamp();
+  await setDoc(docRef, data);
 }
 
 export async function completeTask(taskId: string): Promise<void> {

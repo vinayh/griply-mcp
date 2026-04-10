@@ -138,6 +138,19 @@ export const createTaskSchema = z.object({
   parentTaskId: z.string().optional().describe("Parent task ID for subtasks"),
 });
 
+export const updateTaskSchema = z.object({
+  taskId: z.string().describe("The task ID to update"),
+  name: z.string().optional().describe("New task name"),
+  taskDescription: z.string().optional().describe("New description"),
+  priority: z.string().optional().describe("Priority: High, Medium, Low, or None"),
+  scheduledDate: z.string().optional().describe("Scheduled date (YYYY-MM-DD)"),
+  startTime: z.string().optional().describe("Start time (HH:MM)"),
+  duration: z.number().optional().describe("Duration in minutes"),
+  deadline: z.string().optional().describe("Deadline (YYYY-MM-DD)"),
+  goalId: z.string().optional().describe("Link to a goal by ID"),
+  lifeAreaId: z.string().optional().describe("Link to a life area by ID"),
+});
+
 export const completeTaskSchema = z.object({
   taskId: z.string().describe("The task ID to complete"),
 });

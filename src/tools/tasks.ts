@@ -4,6 +4,7 @@ import * as tasks from "../firestore/tasks.js";
 import {
   listTasksSchema,
   createTaskSchema,
+  updateTaskSchema,
   completeTaskSchema,
   deleteTaskSchema,
 } from "../types.js";
@@ -16,6 +17,15 @@ export function registerTaskTools(server: McpServer): void {
 
   server.tool("create_task", "Create a new task", createTaskSchema.shape,
     async (params) => jsonResult(await tasks.createTask(await ensureAuth(), params))
+  );
+
+  server.tool("update_task", "Update an existing task", updateTaskSchema.shape,
+    async (params) => {
+      await ensureAuth();
+      const { taskId, ...updates } = params;
+      await tasks.updateTask(taskId, updates);
+      return textResult(`Task ${taskId} updated`);
+    }
   );
 
   server.tool("complete_task", "Mark a task as completed", completeTaskSchema.shape,

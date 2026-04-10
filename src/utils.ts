@@ -100,8 +100,8 @@ export function userFilter(uid: string): QueryConstraint {
 export function docToTask(id: string, data: Record<string, unknown>): Task {
   const timeslot = data.timeslot as Record<string, unknown> | null;
   const endStrategy = data.endStrategy as Record<string, unknown> | null;
-  // deadlineDeadline is a legacy field; new tasks use endStrategy.deadline
-  const dl = (endStrategy?.deadline ?? data.deadlineDeadline) as Timestamp | null;
+  // Griply app writes deadlines to deadlineDeadline; endStrategy.deadline is a fallback
+  const dl = (data.deadlineDeadline ?? endStrategy?.deadline) as Timestamp | null;
 
   return {
     id,

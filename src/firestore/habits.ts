@@ -1,12 +1,13 @@
 import {
   doc,
   getDocs,
-  updateDoc,
-  getDoc,
+  setDoc,
+  getDocFromServer,
   query,
   where,
   orderBy,
   Timestamp,
+  serverTimestamp,
 } from "firebase/firestore";
 import { getDb } from "../firebase/client.js";
 import type { Habit } from "../types.js";
@@ -38,7 +39,7 @@ export async function addHabitOccurrence(
   params: { habitId: string; date?: string; status?: string }
 ): Promise<void> {
   const habitRef = doc(getDb(), "tasks", params.habitId);
-  const habitDoc = await getDoc(habitRef);
+  const habitDoc = await getDocFromServer(habitRef);
 
   if (!habitDoc.exists()) throw new Error(`Habit ${params.habitId} not found`);
 
@@ -61,8 +62,7 @@ export async function addHabitOccurrence(
     entries: [...((updatedSchedules[last].entries as Array<unknown>) || []), newEntry],
   };
 
-  await updateDoc(habitRef, {
-    schedules: updatedSchedules,
-    updatedAt: new Date(),
-  });
+  data.schedules = updatedSchedules;
+  data.updatedAt = serverTimestamp();
+  await setDoc(habitRef, data);
 }

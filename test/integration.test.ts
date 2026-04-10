@@ -200,6 +200,36 @@ describe("habits (read)", () => {
     );
   });
 
+  it("addHabitOccurrence succeeds with explicit date on a real habit", async () => {
+    const farDate = "2099-12-31";
+    const habit = allHabits[0];
+    await habits.addHabitOccurrence({ habitId: habit.id, date: farDate });
+
+    // Verify occurrence was added by re-listing
+    const updated = await habits.listHabits(uid);
+    const h = updated.find((x) => x.id === habit.id);
+    expect(h).toBeDefined();
+
+    // Clean up: read-modify-write to remove the far-future entry
+    await sleep(500);
+    const { getDocFromServer, setDoc, doc, serverTimestamp } = await import("firebase/firestore");
+    const snap = await getDocFromServer(doc(getDb(), "tasks", habit.id));
+    const data = snap.data()!;
+    const schedules = [...(data.schedules as Array<Record<string, unknown>>)];
+    const last = schedules.length - 1;
+    const entries = (schedules[last].entries as Array<Record<string, unknown>>) || [];
+    schedules[last] = {
+      ...schedules[last],
+      entries: entries.filter((e: any) => {
+        const d = e.date?.toDate?.()?.toISOString?.() || "";
+        return !d.startsWith("2099-12-31");
+      }),
+    };
+    data.schedules = schedules;
+    data.updatedAt = serverTimestamp();
+    await setDoc(doc(getDb(), "tasks", habit.id), data);
+  });
+
   it("addHabitOccurrence throws 'no schedules' on a todo task", async () => {
     // A todo task has schedules: null, so it should hit the "no schedules" branch
     const t = await tasks.createTask(uid, { name: "test-not-a-habit" });

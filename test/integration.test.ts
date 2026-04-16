@@ -4,10 +4,22 @@ import * as goals from "../src/firestore/goals.js";
 import * as tasks from "../src/firestore/tasks.js";
 import * as habits from "../src/firestore/habits.js";
 import * as summary from "../src/firestore/summary.js";
+import { registerAllTools } from "../src/tools/index.js";
 import { doc, deleteDoc } from "firebase/firestore";
 import { getDb } from "../src/firebase/client.js";
 
 let uid: string;
+
+// Capture tool handlers by registering on a lightweight spy
+type ToolHandler = (params: Record<string, unknown>) => Promise<{ content: { type: string; text: string }[] }>;
+const toolHandlers: Record<string, ToolHandler> = {};
+const mockServer = {
+  tool: (name: string, ...args: unknown[]) => {
+    toolHandlers[name] = args[args.length - 1] as ToolHandler;
+    return { remove: () => {} };
+  },
+};
+registerAllTools(mockServer as any);
 
 beforeAll(async () => {
   uid = await ensureAuth();
@@ -479,5 +491,222 @@ describe("goal writes", () => {
     await expect(goals.getGoalProgress("nonexistent_id_12345")).rejects.toThrow(
       /not found|permission/i
     );
+  });
+});
+
+// ── Tool handlers ──
+
+function parseToolJson(result: { content: { type: string; text: string }[] }) {
+  return JSON.parse(result.content[0].text);
+}
+
+function parseToolText(result: { content: { type: string; text: string }[] }) {
+  return result.content[0].text;
+}
+
+describe("tool handlers: goals", () => {
+  it("list_goals returns JSON array via tool handler", async () => {
+    const result = await toolHandlers["list_goals"]({});
+    const data = parseToolJson(result);
+    expect(data).toBeInstanceOf(Array);
+    expect(data.length).toBeGreaterThan(0);
+    expect(data[0].id).toBeDefined();
+  });
+
+  it("get_goal returns goal with tasks via tool handler", async () => {
+    const allGoals = await goals.listGoals(uid);
+    const result = await toolHandlers["get_goal"]({ goalId: allGoals[0].id });
+    const data = parseToolJson(result);
+    expect(data.id).toBe(allGoals[0].id);
+    expect(data.tasks).toBeInstanceOf(Array);
+  });
+
+  it("create_goal returns created goal via tool handler", async () => {
+    const result = await toolHandlers["create_goal"]({ name: "test-tool-goal" });
+    const data = parseToolJson(result);
+    expect(data.id).toBeDefined();
+    expect(data.name).toBe("test-tool-goal");
+    await deleteDoc(doc(getDb(), "goals", data.id));
+  });
+
+  it("complete_goal returns confirmation text via tool handler", async () => {
+    const g = await goals.createGoal(uid, { name: "test-tool-complete-goal" });
+    await sleep(500);
+    const result = await toolHandlers["complete_goal"]({ goalId: g.id });
+    const text = parseToolText(result);
+    expect(text).toContain(g.id);
+    expect(text).toContain("completed");
+    await sleep(500);
+    await deleteDoc(doc(getDb(), "goals", g.id));
+  });
+
+  it("get_goal_progress returns progress via tool handler", async () => {
+    const allGoals = await goals.listGoals(uid);
+    const result = await toolHandlers["get_goal_progress"]({ goalId: allGoals[0].id });
+    const data = parseToolJson(result);
+    expect(data.goalId).toBe(allGoals[0].id);
+    expect(typeof data.progress).toBe("number");
+  });
+});
+
+describe("tool handlers: tasks", () => {
+  it("list_tasks returns JSON array via tool handler", async () => {
+    const result = await toolHandlers["list_tasks"]({ filter: "all" });
+    const data = parseToolJson(result);
+    expect(data).toBeInstanceOf(Array);
+    expect(data.length).toBeGreaterThan(0);
+  });
+
+  it("create_task returns created task via tool handler", async () => {
+    const result = await toolHandlers["create_task"]({ name: "test-tool-task" });
+    const data = parseToolJson(result);
+    expect(data.id).toBeDefined();
+    expect(data.name).toBe("test-tool-task");
+    await tasks.deleteTask(data.id);
+  });
+
+  it("update_task returns confirmation text via tool handler", async () => {
+    const t = await tasks.createTask(uid, { name: "test-tool-update" });
+    await sleep(500);
+    const result = await toolHandlers["update_task"]({
+      taskId: t.id,
+      name: "test-tool-updated",
+      priority: "High",
+    });
+    const text = parseToolText(result);
+    expect(text).toContain(t.id);
+    expect(text).toContain("updated");
+
+    const all = await tasks.listTasks(uid, { filter: "all" });
+    const found = all.find((x) => x.id === t.id);
+    expect(found!.name).toBe("test-tool-updated");
+    expect(found!.priority).toBe("high");
+    await tasks.deleteTask(t.id);
+  });
+
+  it("complete_task returns confirmation text via tool handler", async () => {
+    const t = await tasks.createTask(uid, { name: "test-tool-complete" });
+    await sleep(1500);
+    const result = await toolHandlers["complete_task"]({ taskId: t.id });
+    const text = parseToolText(result);
+    expect(text).toContain(t.id);
+    expect(text).toContain("completed");
+    await deleteDoc(doc(getDb(), "tasks", t.id));
+  });
+
+  it("delete_task returns confirmation text via tool handler", async () => {
+    const t = await tasks.createTask(uid, { name: "test-tool-delete" });
+    await sleep(500);
+    const result = await toolHandlers["delete_task"]({ taskId: t.id });
+    const text = parseToolText(result);
+    expect(text).toContain(t.id);
+    expect(text).toContain("deleted");
+    const all = await tasks.listTasks(uid, { filter: "all" });
+    expect(all.find((x) => x.id === t.id)).toBeUndefined();
+  });
+});
+
+describe("tool handlers: habits", () => {
+  it("list_habits returns JSON array via tool handler", async () => {
+    const result = await toolHandlers["list_habits"]({});
+    const data = parseToolJson(result);
+    expect(data).toBeInstanceOf(Array);
+    expect(data.length).toBeGreaterThan(0);
+    expect(data[0].id).toBeDefined();
+    expect(data[0].name).toBeDefined();
+  });
+
+  it("add_habit_occurrence returns confirmation text via tool handler", async () => {
+    const allHabits = await habits.listHabits(uid);
+    const habit = allHabits[0];
+    const farDate = "2099-12-30";
+
+    const result = await toolHandlers["add_habit_occurrence"]({
+      habitId: habit.id,
+      date: farDate,
+    });
+    const text = parseToolText(result);
+    expect(text).toContain(habit.id);
+    expect(text).toContain(farDate);
+
+    // Clean up the far-future entry
+    await sleep(500);
+    const { getDocFromServer, setDoc, doc: fbDoc, serverTimestamp } = await import("firebase/firestore");
+    const snap = await getDocFromServer(fbDoc(getDb(), "tasks", habit.id));
+    const data = snap.data()!;
+    const schedules = [...(data.schedules as Array<Record<string, unknown>>)];
+    const last = schedules.length - 1;
+    const entries = (schedules[last].entries as Array<Record<string, unknown>>) || [];
+    schedules[last] = {
+      ...schedules[last],
+      entries: entries.filter((e: any) => {
+        const d = e.date?.toDate?.()?.toISOString?.() || "";
+        return !d.startsWith("2099-12-30");
+      }),
+    };
+    data.schedules = schedules;
+    data.updatedAt = serverTimestamp();
+    await setDoc(fbDoc(getDb(), "tasks", habit.id), data);
+  });
+
+  it("add_habit_occurrence text says 'today' when no date given", async () => {
+    const allHabits = await habits.listHabits(uid);
+    const habit = allHabits[0];
+
+    const result = await toolHandlers["add_habit_occurrence"]({
+      habitId: habit.id,
+    });
+    const text = parseToolText(result);
+    expect(text).toContain("today");
+
+    // Clean up today's test entry (the most recent one)
+    await sleep(500);
+    const { getDocFromServer, setDoc, doc: fbDoc, serverTimestamp } = await import("firebase/firestore");
+    const snap = await getDocFromServer(fbDoc(getDb(), "tasks", habit.id));
+    const data = snap.data()!;
+    const schedules = [...(data.schedules as Array<Record<string, unknown>>)];
+    const last = schedules.length - 1;
+    const entries = (schedules[last].entries as Array<Record<string, unknown>>) || [];
+    // Remove the last entry (the one we just added)
+    schedules[last] = {
+      ...schedules[last],
+      entries: entries.slice(0, -1),
+    };
+    data.schedules = schedules;
+    data.updatedAt = serverTimestamp();
+    await setDoc(fbDoc(getDb(), "tasks", habit.id), data);
+  });
+});
+
+describe("tool handlers: summary", () => {
+  it("get_today_summary returns complete summary via tool handler", async () => {
+    const result = await toolHandlers["get_today_summary"]({});
+    const data = parseToolJson(result);
+    expect(data.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(data.tasks).toBeInstanceOf(Array);
+    expect(data.habits).toBeInstanceOf(Array);
+    expect(typeof data.completedTaskCount).toBe("number");
+    expect(typeof data.totalTaskCount).toBe("number");
+  });
+
+  it("get_today_summary respects timezone via tool handler", async () => {
+    const result = await toolHandlers["get_today_summary"]({ timezone: "Asia/Tokyo" });
+    const data = parseToolJson(result);
+    expect(data.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+});
+
+describe("tool registration", () => {
+  it("all expected tools are registered", () => {
+    const expectedTools = [
+      "list_goals", "get_goal", "create_goal", "complete_goal", "get_goal_progress",
+      "list_tasks", "create_task", "update_task", "complete_task", "delete_task",
+      "list_habits", "add_habit_occurrence",
+      "get_today_summary",
+    ];
+    for (const name of expectedTools) {
+      expect(toolHandlers[name]).toBeDefined();
+      expect(typeof toolHandlers[name]).toBe("function");
+    }
   });
 });

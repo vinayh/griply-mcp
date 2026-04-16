@@ -1,13 +1,18 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { Timestamp } from "firebase/firestore";
 import {
   timestampToISO,
   timestampToDateStr,
+  dateToDeadlineTimestamp,
+  dateToTimestamp,
   msToTimeString,
   timeStringToMs,
   msToDurationMinutes,
+  getTodayStr,
+  getTodayRange,
   str,
   firstId,
+  makeRoles,
   docToTask,
   docToHabit,
   getCurrentSchedule,
@@ -52,7 +57,41 @@ describe("timestampToDateStr", () => {
   });
 });
 
+describe("dateToDeadlineTimestamp", () => {
+  it("creates a Timestamp at 22:59:59.999 UTC", () => {
+    const ts = dateToDeadlineTimestamp("2026-04-15");
+    const d = ts.toDate();
+    expect(d.getUTCHours()).toBe(22);
+    expect(d.getUTCMinutes()).toBe(59);
+    expect(d.getUTCSeconds()).toBe(59);
+    expect(d.getUTCMilliseconds()).toBe(999);
+    expect(d.toISOString().startsWith("2026-04-15")).toBe(true);
+  });
+});
+
+describe("dateToTimestamp", () => {
+  it("creates a Timestamp at midnight UTC for a date string", () => {
+    const ts = dateToTimestamp("2026-04-15T00:00:00Z");
+    const d = ts.toDate();
+    expect(d.toISOString()).toBe("2026-04-15T00:00:00.000Z");
+  });
+
+  it("preserves the date from a plain date string", () => {
+    const ts = dateToTimestamp("2026-07-01");
+    expect(ts.toDate().toISOString().startsWith("2026-07-01")).toBe(true);
+  });
+});
+
 // ── Time helpers ──
+
+describe("timeStringToMs", () => {
+  it("converts HH:MM to milliseconds", () => {
+    expect(timeStringToMs("00:00")).toBe(0);
+    expect(timeStringToMs("01:00")).toBe(3_600_000);
+    expect(timeStringToMs("09:30")).toBe(9 * 3_600_000 + 30 * 60_000);
+    expect(timeStringToMs("23:59")).toBe(23 * 3_600_000 + 59 * 60_000);
+  });
+});
 
 describe("msToTimeString / timeStringToMs", () => {
   it("round-trips correctly", () => {
@@ -106,6 +145,44 @@ describe("firstId", () => {
 
   it("returns first string element", () => {
     expect(firstId(["abc", "def"])).toBe("abc");
+  });
+});
+
+describe("makeRoles", () => {
+  it("returns owner and all array with the uid", () => {
+    const roles = makeRoles("user123");
+    expect(roles).toEqual({ owner: "user123", all: ["user123"] });
+  });
+});
+
+// ── Date range helpers ──
+
+describe("getTodayStr", () => {
+  it("returns a YYYY-MM-DD string", () => {
+    const result = getTodayStr();
+    expect(result).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it("respects timezone parameter", () => {
+    // At any given moment, UTC and Pacific can differ by a day
+    const utc = getTodayStr("UTC");
+    expect(utc).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+});
+
+describe("getTodayRange", () => {
+  it("returns start and end dates for today", () => {
+    const { start, end } = getTodayRange("UTC");
+    expect(start.getUTCHours()).toBe(0);
+    expect(start.getUTCMinutes()).toBe(0);
+    expect(end.getUTCHours()).toBe(23);
+    expect(end.getUTCMinutes()).toBe(59);
+    expect(end.getUTCSeconds()).toBe(59);
+  });
+
+  it("start and end share the same date", () => {
+    const { start, end } = getTodayRange("UTC");
+    expect(start.toISOString().split("T")[0]).toBe(end.toISOString().split("T")[0]);
   });
 });
 
@@ -172,6 +249,48 @@ describe("docToTask", () => {
       completedAt: null,
     });
     expect(task.deadline).toBe("2026-04-10T00:00:00.000Z");
+  });
+
+  it("extracts startTime and duration from timeslot", () => {
+    const task = docToTask("id4", {
+      name: "Timed task",
+      startDate: null,
+      timeslot: { startTime: 9 * 3_600_000 + 30 * 60_000, duration: 2_700_000 },
+      endStrategy: null,
+      deadlineDeadline: null,
+      completedAt: null,
+    });
+    expect(task.startTime).toBe("09:30");
+    expect(task.duration).toBe(45);
+  });
+
+  it("marks completed tasks", () => {
+    const task = docToTask("id5", {
+      name: "Done task",
+      startDate: null,
+      timeslot: null,
+      endStrategy: null,
+      deadlineDeadline: null,
+      completedAt: Timestamp.now(),
+    });
+    expect(task.isCompleted).toBe(true);
+  });
+
+  it("extracts goalId, lifeAreaId, and parentTaskId", () => {
+    const task = docToTask("id6", {
+      name: "Linked task",
+      startDate: null,
+      timeslot: null,
+      endStrategy: null,
+      deadlineDeadline: null,
+      completedAt: null,
+      goalId: "goal1",
+      lifeAreaId: "area1",
+      parentIds: ["parent1"],
+    });
+    expect(task.goalId).toBe("goal1");
+    expect(task.lifeAreaId).toBe("area1");
+    expect(task.parentTaskId).toBe("parent1");
   });
 });
 
@@ -286,5 +405,60 @@ describe("docToHabit rrule parsing", () => {
     };
     const habit = docToHabit("h3", data, "2026-04-10");
     expect(habit.schedulePeriod).toBe("month");
+  });
+
+  it("handles habit with no schedules", () => {
+    const habit = docToHabit("h4", {
+      name: "No schedule",
+      description: null,
+      startDate: null,
+      priority: null,
+      iconName: null,
+      goalId: null,
+      lifeAreaId: null,
+      archivedAt: null,
+      schedules: null,
+    }, "2026-04-10");
+    expect(habit.targetPeriod).toBeUndefined();
+    expect(habit.schedulePeriod).toBeUndefined();
+    expect(habit.completedToday).toBe(false);
+    expect(habit.todayCount).toBe(0);
+  });
+
+  it("extracts timeslot from schedule", () => {
+    const habit = docToHabit("h5", {
+      name: "Timed habit",
+      description: null,
+      startDate: null,
+      priority: null,
+      iconName: null,
+      goalId: null,
+      lifeAreaId: null,
+      archivedAt: null,
+      schedules: [{
+        completionTarget: null,
+        frequency: null,
+        rrule: null,
+        timeslot: { startTime: 7 * 3_600_000, duration: 1_800_000 },
+        entries: [],
+      }],
+    }, "2026-04-10");
+    expect(habit.startTime).toBe("07:00");
+    expect(habit.duration).toBe(30);
+  });
+
+  it("marks archived habits", () => {
+    const habit = docToHabit("h6", {
+      name: "Archived",
+      description: null,
+      startDate: null,
+      priority: null,
+      iconName: null,
+      goalId: null,
+      lifeAreaId: null,
+      archivedAt: Timestamp.now(),
+      schedules: null,
+    }, "2026-04-10");
+    expect(habit.isArchived).toBe(true);
   });
 });

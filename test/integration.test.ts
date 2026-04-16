@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll } from "bun:test";
 import { ensureAuth } from "../src/firebase/auth.js";
 import * as goals from "../src/firestore/goals.js";
 import * as tasks from "../src/firestore/tasks.js";
@@ -19,7 +19,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 describe("auth", () => {
   it("returns a uid string", () => {
-    expect(uid).toBeTypeOf("string");
+    expect(typeof uid).toBe("string");
     expect(uid.length).toBeGreaterThan(0);
   });
 
@@ -44,10 +44,10 @@ describe("goals (read)", () => {
 
   it("each goal has required fields", () => {
     for (const g of allGoals) {
-      expect(g.id).toBeTypeOf("string");
-      expect(g.name).toBeTypeOf("string");
-      expect(g.isArchived).toBeTypeOf("boolean");
-      expect(g.isCompleted).toBeTypeOf("boolean");
+      expect(typeof g.id).toBe("string");
+      expect(typeof g.name).toBe("string");
+      expect(typeof g.isArchived).toBe("boolean");
+      expect(typeof g.isCompleted).toBe("boolean");
     }
   });
 
@@ -84,11 +84,11 @@ describe("goals (read)", () => {
   it("get_goal_progress returns progress object", async () => {
     const p = await goals.getGoalProgress(allGoals[0].id);
     expect(p.goalId).toBe(allGoals[0].id);
-    expect(p.progress).toBeTypeOf("number");
+    expect(typeof p.progress).toBe("number");
     expect(p.progress).toBeGreaterThanOrEqual(0);
     expect(p.progress).toBeLessThanOrEqual(100);
-    expect(p.completedTasks).toBeTypeOf("number");
-    expect(p.totalTasks).toBeTypeOf("number");
+    expect(typeof p.completedTasks).toBe("number");
+    expect(typeof p.totalTasks).toBe("number");
   });
 });
 
@@ -100,8 +100,8 @@ describe("tasks (read)", () => {
     expect(result).toBeInstanceOf(Array);
     expect(result.length).toBeGreaterThan(0);
     for (const t of result) {
-      expect(t.id).toBeTypeOf("string");
-      expect(t.name).toBeTypeOf("string");
+      expect(typeof t.id).toBe("string");
+      expect(typeof t.name).toBe("string");
       expect(t.isCompleted).toBe(false);
     }
   });
@@ -181,10 +181,10 @@ describe("habits (read)", () => {
 
   it("each habit has required fields", () => {
     for (const h of allHabits) {
-      expect(h.id).toBeTypeOf("string");
-      expect(h.name).toBeTypeOf("string");
-      expect(h.completedToday).toBeTypeOf("boolean");
-      expect(h.todayCount).toBeTypeOf("number");
+      expect(typeof h.id).toBe("string");
+      expect(typeof h.name).toBe("string");
+      expect(typeof h.completedToday).toBe("boolean");
+      expect(typeof h.todayCount).toBe("number");
       expect(h.isArchived).toBe(false);
     }
   });
@@ -278,7 +278,7 @@ describe("task writes", () => {
       duration: 45,
     });
 
-    expect(t.id).toBeTypeOf("string");
+    expect(typeof t.id).toBe("string");
     expect(t.name).toBe("test-integration-task");
     expect(t.description).toBe("Created by test suite");
     expect(t.priority).toBe("medium");
@@ -402,7 +402,7 @@ describe("goal writes", () => {
       goalDescription: "Created by test suite",
       deadline: "2026-06-01",
     });
-    expect(g.id).toBeTypeOf("string");
+    expect(typeof g.id).toBe("string");
     expect(g.name).toBe("test-integration-goal");
     expect(g.description).toBe("Created by test suite");
     expect(g.isCompleted).toBe(false);

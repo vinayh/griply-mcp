@@ -7,8 +7,7 @@ An [MCP](https://modelcontextprotocol.io) server for [Griply](https://griply.app
 ## Setup
 
 ```bash
-npm install
-npm run build
+bun install
 ```
 
 ### Firebase Config
@@ -46,7 +45,7 @@ Add to `~/.claude/settings.json`:
   "mcpServers": {
     "griply": {
       "command": "sh",
-      "args": ["-c", "export $(grep GRIPLY_ /path/to/griply-mcp/.env | xargs) && node /path/to/griply-mcp/dist/index.js"]
+      "args": ["-c", "export $(grep GRIPLY_ /path/to/griply-mcp/.env | xargs) && bun /path/to/griply-mcp/src/index.ts"]
     }
   }
 }
@@ -89,9 +88,9 @@ Add to `~/.claude/settings.json`:
 ## Development
 
 ```bash
-npm run dev    # run with tsx (no build step)
-npm test       # run integration tests (requires .env + config)
-npm run build  # compile TypeScript
+bun dev        # run with --watch
+bun test       # run tests (requires .env + config)
+bun run build  # bundle to dist/ (optional)
 ```
 
 ## Architecture

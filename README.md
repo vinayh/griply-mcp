@@ -1,5 +1,7 @@
 # griply-mcp
 
+[![codecov](https://codecov.io/github/vinayh/griply-mcp/graph/badge.svg?token=M6MMMFQIAG)](https://codecov.io/github/vinayh/griply-mcp)
+
 An [MCP](https://modelcontextprotocol.io) server for [Griply](https://griply.app) that provides AI assistants with direct access to your goals, tasks, and habits via the Firebase/Firestore API.
 
 > **Disclaimer:** This is an unofficial, personal project. It is not endorsed, approved, or affiliated with Griply in any way. Use at your own risk.
@@ -69,6 +71,7 @@ Add to `~/.claude/settings.json`:
 |------|-------------|
 | `list_tasks` | List tasks with a filter (`today`, `upcoming`, `inbox`, `all`, `completed`) |
 | `create_task` | Create a new task with optional priority, deadline, time slot, and goal link |
+| `update_task` | Update an existing task's name, priority, dates, or time slot |
 | `complete_task` | Mark a task as completed |
 | `delete_task` | Delete a task |
 

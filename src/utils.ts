@@ -91,17 +91,40 @@ export function goalsRef() {
   return collection(getDb(), "goals");
 }
 
+export function relationshipsRef() {
+  return collection(getDb(), "relationships");
+}
+
 export function userFilter(uid: string): QueryConstraint {
   return where("roles.all", "array-contains", uid);
 }
 
 // ── Document converters ──
 
+/** Extract deadline from raw Firestore data. deadlineDeadline is preferred; endStrategy.deadline is the fallback. */
+export function getDeadlineTimestamp(data: Record<string, unknown>): Timestamp | null {
+  const endStrategy = data.endStrategy as Record<string, unknown> | null;
+  return (data.deadlineDeadline ?? endStrategy?.deadline ?? null) as Timestamp | null;
+}
+
+/** Check whether a raw Firestore task doc is due today (by deadline or scheduledDate). */
+export function isTaskDueToday(
+  data: Record<string, unknown>,
+  todayStr: string,
+  todayEnd: Date
+): boolean {
+  const dl = getDeadlineTimestamp(data);
+  if (dl) return dl.toDate() <= todayEnd;
+  const startDate = data.startDate as Timestamp | null;
+  if (startDate && startDate instanceof Timestamp) {
+    return startDate.toDate().toISOString().split("T")[0] === todayStr;
+  }
+  return false;
+}
+
 export function docToTask(id: string, data: Record<string, unknown>): Task {
   const timeslot = data.timeslot as Record<string, unknown> | null;
-  const endStrategy = data.endStrategy as Record<string, unknown> | null;
-  // Griply app writes deadlines to deadlineDeadline; endStrategy.deadline is a fallback
-  const dl = (data.deadlineDeadline ?? endStrategy?.deadline) as Timestamp | null;
+  const dl = getDeadlineTimestamp(data);
 
   return {
     id,

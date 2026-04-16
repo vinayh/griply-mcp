@@ -1,5 +1,4 @@
 import {
-  collection,
   doc,
   getDocFromServer,
   getDocs,
@@ -18,12 +17,14 @@ import type { Task } from "../types.js";
 import {
   TASK_TYPE,
   docToTask,
-  getTodayRange,
+  isTaskDueToday,
+  getTodayStr,
   dateToDeadlineTimestamp,
   dateToTimestamp,
   timeStringToMs,
   makeRoles,
   tasksRef,
+  relationshipsRef,
   userFilter,
   MS_PER_MINUTE,
 } from "../utils.js";
@@ -36,8 +37,6 @@ export async function listTasks(
     userFilter(uid),
     where("type", "==", TASK_TYPE.TODO),
   ];
-
-  const { start: todayStart, end: todayEnd } = getTodayRange();
 
   switch (opts.filter) {
     case "today":
@@ -53,6 +52,7 @@ export async function listTasks(
     case "completed":
       constraints.length = 0;
       constraints.push(userFilter(uid));
+      constraints.push(where("type", "==", TASK_TYPE.TODO));
       constraints.push(
         where("completedAt", ">=", Timestamp.fromDate(new Date(Date.now() - 30 * 86_400_000)))
       );
@@ -69,18 +69,13 @@ export async function listTasks(
   const snapshot = await getDocs(
     query(tasksRef(), ...constraints, orderBy("createdAt", "asc"))
   );
-  let tasks = snapshot.docs.map((d) => docToTask(d.id, d.data()));
-
+  let docs = snapshot.docs;
   if (opts.filter === "today") {
-    tasks = tasks.filter((t) => {
-      if (t.deadline) return new Date(t.deadline) <= todayEnd;
-      if (t.scheduledDate) {
-        const sd = new Date(t.scheduledDate);
-        return sd >= todayStart && sd <= todayEnd;
-      }
-      return false;
-    });
+    const todayStr = getTodayStr();
+    const todayEnd = new Date(todayStr + "T23:59:59.999Z");
+    docs = docs.filter((d) => isTaskDueToday(d.data(), todayStr, todayEnd));
   }
+  let tasks = docs.map((d) => docToTask(d.id, d.data()));
 
   if (opts.tagId) {
     tasks = await filterByTag(uid, opts.tagId, tasks);
@@ -92,7 +87,7 @@ export async function listTasks(
 async function filterByTag(uid: string, tagId: string, tasks: Task[]): Promise<Task[]> {
   const relSnap = await getDocs(
     query(
-      collection(getDb(), "relationships"),
+      relationshipsRef(),
       userFilter(uid),
       where("id", "==", `tag:${tagId}`)
     )

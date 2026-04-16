@@ -11,6 +11,7 @@ import {
   DEFAULT_TIMEZONE,
   docToTask,
   docToHabit,
+  isTaskDueToday,
   getTodayStr,
   tasksRef,
   userFilter,
@@ -48,15 +49,7 @@ export async function getTodaySummary(
     }
 
     // Uncompleted: check if due today
-    const endStrategy = data.endStrategy as Record<string, unknown> | null;
-    const dl = (endStrategy?.deadline ?? data.deadlineDeadline) as Timestamp | null;
-    const startDate = data.startDate as Timestamp | null;
-
-    const isToday =
-      (dl && dl.toDate() <= todayEnd) ||
-      (startDate && startDate.toDate().toISOString().split("T")[0] === todayStr);
-
-    if (isToday) tasks.push(docToTask(d.id, data));
+    if (isTaskDueToday(data, todayStr, todayEnd)) tasks.push(docToTask(d.id, data));
   }
 
   // Query active habits

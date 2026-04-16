@@ -13,6 +13,8 @@ import {
   str,
   firstId,
   makeRoles,
+  getDeadlineTimestamp,
+  isTaskDueToday,
   docToTask,
   docToHabit,
   getCurrentSchedule,
@@ -294,6 +296,86 @@ describe("docToTask", () => {
   });
 });
 
+// ── getDeadlineTimestamp ──
+
+describe("getDeadlineTimestamp", () => {
+  it("prefers deadlineDeadline over endStrategy.deadline", () => {
+    const ts1 = Timestamp.fromDate(new Date("2026-04-16"));
+    const ts2 = Timestamp.fromDate(new Date("2026-04-10"));
+    const result = getDeadlineTimestamp({
+      deadlineDeadline: ts1,
+      endStrategy: { deadline: ts2 },
+    });
+    expect(result).toBe(ts1);
+  });
+
+  it("falls back to endStrategy.deadline when deadlineDeadline is null", () => {
+    const ts = Timestamp.fromDate(new Date("2026-04-10"));
+    const result = getDeadlineTimestamp({
+      deadlineDeadline: null,
+      endStrategy: { deadline: ts },
+    });
+    expect(result).toBe(ts);
+  });
+
+  it("returns null when both are absent", () => {
+    expect(getDeadlineTimestamp({ endStrategy: null })).toBeNull();
+    expect(getDeadlineTimestamp({})).toBeNull();
+  });
+});
+
+// ── isTaskDueToday ──
+
+describe("isTaskDueToday", () => {
+  const todayStr = "2026-04-16";
+  const todayEnd = new Date("2026-04-16T23:59:59.999Z");
+
+  it("returns true when deadline is today", () => {
+    expect(isTaskDueToday({
+      deadlineDeadline: Timestamp.fromDate(new Date("2026-04-16T22:59:59.999Z")),
+      endStrategy: null,
+    }, todayStr, todayEnd)).toBe(true);
+  });
+
+  it("returns true when deadline is in the past", () => {
+    expect(isTaskDueToday({
+      deadlineDeadline: Timestamp.fromDate(new Date("2026-04-10T22:59:59.999Z")),
+      endStrategy: null,
+    }, todayStr, todayEnd)).toBe(true);
+  });
+
+  it("returns false when deadline is tomorrow", () => {
+    expect(isTaskDueToday({
+      deadlineDeadline: Timestamp.fromDate(new Date("2026-04-17T22:59:59.999Z")),
+      endStrategy: null,
+    }, todayStr, todayEnd)).toBe(false);
+  });
+
+  it("returns true when scheduledDate matches today", () => {
+    expect(isTaskDueToday({
+      startDate: Timestamp.fromDate(new Date("2026-04-16T00:00:00Z")),
+    }, todayStr, todayEnd)).toBe(true);
+  });
+
+  it("returns false when scheduledDate is a different day", () => {
+    expect(isTaskDueToday({
+      startDate: Timestamp.fromDate(new Date("2026-04-15T00:00:00Z")),
+    }, todayStr, todayEnd)).toBe(false);
+  });
+
+  it("returns false when neither deadline nor scheduledDate is set", () => {
+    expect(isTaskDueToday({}, todayStr, todayEnd)).toBe(false);
+  });
+
+  it("deadline takes priority over scheduledDate", () => {
+    // deadline is tomorrow (false), but scheduledDate is today — deadline wins
+    expect(isTaskDueToday({
+      deadlineDeadline: Timestamp.fromDate(new Date("2026-04-17T22:59:59.999Z")),
+      startDate: Timestamp.fromDate(new Date("2026-04-16T00:00:00Z")),
+    }, todayStr, todayEnd)).toBe(false);
+  });
+});
+
 // ── Habit schedule helpers ──
 
 describe("getCurrentSchedule", () => {
@@ -460,5 +542,109 @@ describe("docToHabit rrule parsing", () => {
       schedules: null,
     }, "2026-04-10");
     expect(habit.isArchived).toBe(true);
+  });
+});
+
+// ── ensureAuth env var check (auth.ts lines 13-15) ──
+
+describe("ensureAuth", () => {
+  it("throws when GRIPLY_EMAIL and GRIPLY_PASSWORD are not set", async () => {
+    const savedEmail = process.env.GRIPLY_EMAIL;
+    const savedPassword = process.env.GRIPLY_PASSWORD;
+    delete process.env.GRIPLY_EMAIL;
+    delete process.env.GRIPLY_PASSWORD;
+    try {
+      const { ensureAuth } = await import("../src/firebase/auth.js");
+      await expect(ensureAuth()).rejects.toThrow(
+        "GRIPLY_EMAIL and GRIPLY_PASSWORD environment variables are required"
+      );
+    } finally {
+      if (savedEmail) process.env.GRIPLY_EMAIL = savedEmail;
+      if (savedPassword) process.env.GRIPLY_PASSWORD = savedPassword;
+    }
+  });
+
+  it("throws when only GRIPLY_EMAIL is set", async () => {
+    const savedEmail = process.env.GRIPLY_EMAIL;
+    const savedPassword = process.env.GRIPLY_PASSWORD;
+    process.env.GRIPLY_EMAIL = "test@example.com";
+    delete process.env.GRIPLY_PASSWORD;
+    try {
+      const { ensureAuth } = await import("../src/firebase/auth.js");
+      await expect(ensureAuth()).rejects.toThrow(
+        "GRIPLY_EMAIL and GRIPLY_PASSWORD environment variables are required"
+      );
+    } finally {
+      if (savedEmail) process.env.GRIPLY_EMAIL = savedEmail;
+      else delete process.env.GRIPLY_EMAIL;
+      if (savedPassword) process.env.GRIPLY_PASSWORD = savedPassword;
+    }
+  });
+
+  it("throws when only GRIPLY_PASSWORD is set", async () => {
+    const savedEmail = process.env.GRIPLY_EMAIL;
+    const savedPassword = process.env.GRIPLY_PASSWORD;
+    delete process.env.GRIPLY_EMAIL;
+    process.env.GRIPLY_PASSWORD = "secret";
+    try {
+      const { ensureAuth } = await import("../src/firebase/auth.js");
+      await expect(ensureAuth()).rejects.toThrow(
+        "GRIPLY_EMAIL and GRIPLY_PASSWORD environment variables are required"
+      );
+    } finally {
+      if (savedEmail) process.env.GRIPLY_EMAIL = savedEmail;
+      if (savedPassword) process.env.GRIPLY_PASSWORD = savedPassword;
+      else delete process.env.GRIPLY_PASSWORD;
+    }
+  });
+});
+
+// ── setup.ts env loading (line 10: does not overwrite existing vars) ──
+
+describe("setup.ts env loading logic", () => {
+  // Replicates the parsing logic from test/setup.ts to test it in isolation
+  function loadEnvString(content: string) {
+    for (const line of content.split("\n")) {
+      const idx = line.indexOf("=");
+      if (idx > 0) {
+        const key = line.slice(0, idx).trim();
+        if (!process.env[key]) {
+          process.env[key] = line.slice(idx + 1).trim();
+        }
+      }
+    }
+  }
+
+  it("does not overwrite an existing env var", () => {
+    process.env.__TEST_SETUP_EXISTING = "original";
+    loadEnvString("__TEST_SETUP_EXISTING=from_file");
+    expect(process.env.__TEST_SETUP_EXISTING).toBe("original");
+    delete process.env.__TEST_SETUP_EXISTING;
+  });
+
+  it("sets a new env var when not already present", () => {
+    const key = "__TEST_SETUP_NEW_" + Date.now();
+    loadEnvString(`${key}=from_file`);
+    expect(process.env[key]).toBe("from_file");
+    delete process.env[key];
+  });
+
+  it("skips lines without an equals sign", () => {
+    const key = "__TEST_SETUP_NOEQ_" + Date.now();
+    loadEnvString(`# this is a comment\n${key}=value`);
+    expect(process.env[key]).toBe("value");
+    delete process.env[key];
+  });
+
+  it("skips lines where equals is at position 0", () => {
+    loadEnvString("=valuewithnokey");
+    // No key to check — just ensure no crash
+  });
+
+  it("trims whitespace from keys and values", () => {
+    const key = "__TEST_SETUP_TRIM_" + Date.now();
+    loadEnvString(`  ${key}  =  spaced_value  `);
+    expect(process.env[key]).toBe("spaced_value");
+    delete process.env[key];
   });
 });

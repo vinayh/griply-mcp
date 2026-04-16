@@ -388,6 +388,22 @@ describe("task writes", () => {
   it("delete nonexistent ID throws permission error", async () => {
     await expect(tasks.deleteTask("nonexistent_task_id_12345")).rejects.toThrow(/permission/i);
   });
+
+  it("update_task adds deadline to task without existing endStrategy", async () => {
+    // Create task without deadline — endStrategy will be null
+    const t = await tasks.createTask(uid, { name: "test-no-deadline-task" });
+    await sleep(500);
+
+    // Update to add a deadline (hits tasks.ts else branch: data.endStrategy = {...})
+    await tasks.updateTask(t.id, { deadline: "2026-08-01" });
+
+    const all = await tasks.listTasks(uid, { filter: "all" });
+    const found = all.find((x) => x.id === t.id);
+    expect(found).toBeDefined();
+    expect(found!.deadline).toBe("2026-08-01T22:59:59.999Z");
+
+    await tasks.deleteTask(t.id);
+  });
 });
 
 // ── Goal writes ──
@@ -434,6 +450,29 @@ describe("goal writes", () => {
     await deleteDoc(doc(getDb(), "goals", createdGoalId));
     const afterDelete = await goals.listGoals(uid);
     expect(afterDelete.find((x) => x.id === createdGoalId)).toBeUndefined();
+  });
+
+  it("get_goal returns linked tasks with id, name, isCompleted, priority", async () => {
+    // Create a goal, then a task linked to it
+    const g = await goals.createGoal(uid, { name: "test-goal-with-tasks" });
+    const t = await tasks.createTask(uid, {
+      name: "test-linked-task",
+      priority: "high",
+      goalId: g.id,
+    });
+    await sleep(500);
+
+    const fetched = await goals.getGoal(uid, g.id);
+    expect(fetched.tasks.length).toBeGreaterThanOrEqual(1);
+    const linkedTask = fetched.tasks.find((x: any) => x.id === t.id) as any;
+    expect(linkedTask).toBeDefined();
+    expect(linkedTask.name).toBe("test-linked-task");
+    expect(linkedTask.isCompleted).toBe(false);
+    expect(linkedTask.priority).toBe("high");
+
+    // Cleanup
+    await tasks.deleteTask(t.id);
+    await deleteDoc(doc(getDb(), "goals", g.id));
   });
 
   it("get_goal_progress with invalid ID throws", async () => {

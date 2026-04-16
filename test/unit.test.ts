@@ -1,5 +1,6 @@
 import { describe, it, expect } from "bun:test";
 import { Timestamp } from "firebase/firestore";
+import { docToGoal } from "../src/firestore/goals.js";
 import {
   timestampToISO,
   timestampToDateStr,
@@ -201,6 +202,86 @@ describe("jsonResult", () => {
   it("returns MCP text content with formatted JSON", () => {
     const result = jsonResult({ a: 1 });
     expect(result.content[0].text).toBe('{\n  "a": 1\n}');
+  });
+});
+
+// ── docToGoal ──
+
+describe("docToGoal", () => {
+  const baseGoalData = {
+    name: "Test goal",
+    description: null,
+    lifeAreaId: null,
+    parentIds: null,
+    startDate: null,
+    deadline: null,
+    metric: null,
+    color: null,
+    iconName: null,
+    archivedAt: null,
+    completedAt: null,
+    taskCount: 0,
+    isFavorite: false,
+  };
+
+  it("parses metric with string unit", () => {
+    const goal = docToGoal("g1", {
+      ...baseGoalData,
+      metric: { type: "numeric", targetValue: 100, currentValue: 50, unit: "pages" },
+    });
+    expect(goal.metricType).toBe("numeric");
+    expect(goal.targetValue).toBe(100);
+    expect(goal.currentValue).toBe(50);
+    expect(goal.unit).toBe("pages");
+  });
+
+  it("parses metric with object unit (symbol.en)", () => {
+    const goal = docToGoal("g2", {
+      ...baseGoalData,
+      metric: { type: "currency", targetValue: 1000, unit: { symbol: { en: "$" }, id: "usd" } },
+    });
+    expect(goal.unit).toBe("$");
+  });
+
+  it("parses metric with object unit falling back to id", () => {
+    const goal = docToGoal("g3", {
+      ...baseGoalData,
+      metric: { type: "currency", targetValue: 1000, unit: { id: "eur" } },
+    });
+    expect(goal.unit).toBe("eur");
+  });
+
+  it("returns empty metric fields when metric is null", () => {
+    const goal = docToGoal("g4", baseGoalData);
+    expect(goal.metricType).toBeUndefined();
+    expect(goal.targetValue).toBeUndefined();
+    expect(goal.unit).toBeUndefined();
+  });
+
+  it("maps all basic fields", () => {
+    const goal = docToGoal("g5", {
+      ...baseGoalData,
+      name: "My Goal",
+      description: "A description",
+      lifeAreaId: "area1",
+      parentIds: ["parent1"],
+      startDate: Timestamp.fromDate(new Date("2026-01-01")),
+      deadline: Timestamp.fromDate(new Date("2026-12-31")),
+      color: "#ff0000",
+      iconName: "star",
+      archivedAt: Timestamp.now(),
+      completedAt: Timestamp.now(),
+      taskCount: 5,
+    });
+    expect(goal.name).toBe("My Goal");
+    expect(goal.description).toBe("A description");
+    expect(goal.lifeAreaId).toBe("area1");
+    expect(goal.parentGoalId).toBe("parent1");
+    expect(goal.colorHex).toBe("#ff0000");
+    expect(goal.icon).toBe("star");
+    expect(goal.isArchived).toBe(true);
+    expect(goal.isCompleted).toBe(true);
+    expect(goal.taskCount).toBe(5);
   });
 });
 
@@ -599,52 +680,59 @@ describe("ensureAuth", () => {
   });
 });
 
-// ── setup.ts env loading (line 10: does not overwrite existing vars) ──
+// ── setup.ts loadEnvFile (line 10: does not overwrite existing vars) ──
 
-describe("setup.ts env loading logic", () => {
-  // Replicates the parsing logic from test/setup.ts to test it in isolation
-  function loadEnvString(content: string) {
-    for (const line of content.split("\n")) {
-      const idx = line.indexOf("=");
-      if (idx > 0) {
-        const key = line.slice(0, idx).trim();
-        if (!process.env[key]) {
-          process.env[key] = line.slice(idx + 1).trim();
-        }
-      }
-    }
+describe("loadEnvFile", () => {
+  const { writeFileSync, unlinkSync } = require("fs");
+  const { resolve } = require("path");
+  const { loadEnvFile } = require("./setup");
+
+  function withTempEnv(content: string, fn: (path: string) => void) {
+    const p = resolve(process.cwd(), `.env.test.${Date.now()}`);
+    writeFileSync(p, content);
+    try { fn(p); } finally { unlinkSync(p); }
   }
 
   it("does not overwrite an existing env var", () => {
     process.env.__TEST_SETUP_EXISTING = "original";
-    loadEnvString("__TEST_SETUP_EXISTING=from_file");
-    expect(process.env.__TEST_SETUP_EXISTING).toBe("original");
+    withTempEnv("__TEST_SETUP_EXISTING=from_file", (p) => {
+      loadEnvFile(p);
+      expect(process.env.__TEST_SETUP_EXISTING).toBe("original");
+    });
     delete process.env.__TEST_SETUP_EXISTING;
   });
 
   it("sets a new env var when not already present", () => {
     const key = "__TEST_SETUP_NEW_" + Date.now();
-    loadEnvString(`${key}=from_file`);
-    expect(process.env[key]).toBe("from_file");
+    withTempEnv(`${key}=from_file`, (p) => {
+      loadEnvFile(p);
+      expect(process.env[key]).toBe("from_file");
+    });
     delete process.env[key];
   });
 
   it("skips lines without an equals sign", () => {
     const key = "__TEST_SETUP_NOEQ_" + Date.now();
-    loadEnvString(`# this is a comment\n${key}=value`);
-    expect(process.env[key]).toBe("value");
+    withTempEnv(`# this is a comment\n${key}=value`, (p) => {
+      loadEnvFile(p);
+      expect(process.env[key]).toBe("value");
+    });
     delete process.env[key];
   });
 
   it("skips lines where equals is at position 0", () => {
-    loadEnvString("=valuewithnokey");
-    // No key to check — just ensure no crash
+    withTempEnv("=valuewithnokey", (p) => {
+      loadEnvFile(p);
+      // No key to check — just ensure no crash
+    });
   });
 
   it("trims whitespace from keys and values", () => {
     const key = "__TEST_SETUP_TRIM_" + Date.now();
-    loadEnvString(`  ${key}  =  spaced_value  `);
-    expect(process.env[key]).toBe("spaced_value");
+    withTempEnv(`  ${key}  =  spaced_value  `, (p) => {
+      loadEnvFile(p);
+      expect(process.env[key]).toBe("spaced_value");
+    });
     delete process.env[key];
   });
 });

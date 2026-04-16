@@ -46,7 +46,7 @@ function parseMetric(metric: unknown): Pick<Goal, "metricType" | "targetValue" |
   };
 }
 
-function docToGoal(id: string, data: Record<string, unknown>): Goal {
+export function docToGoal(id: string, data: Record<string, unknown>): Goal {
   return {
     id,
     name: data.name as string,

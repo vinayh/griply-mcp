@@ -1,7 +1,8 @@
-import { readFileSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import { resolve } from "path";
 
 export function loadEnvFile(filePath: string) {
+  if (!existsSync(filePath)) return;
   for (const line of readFileSync(filePath, "utf-8").split("\n")) {
     const idx = line.indexOf("=");
     if (idx > 0) {

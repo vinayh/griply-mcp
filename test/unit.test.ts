@@ -432,24 +432,24 @@ describe("isTaskDueToday", () => {
     }, todayStr, todayEnd)).toBe(false);
   });
 
-  it("returns true when scheduledDate matches today", () => {
+  it("returns true when startDate matches today", () => {
     expect(isTaskDueToday({
       startDate: Timestamp.fromDate(new Date("2026-04-16T00:00:00Z")),
     }, todayStr, todayEnd)).toBe(true);
   });
 
-  it("returns false when scheduledDate is a different day", () => {
+  it("returns false when startDate is a different day", () => {
     expect(isTaskDueToday({
       startDate: Timestamp.fromDate(new Date("2026-04-15T00:00:00Z")),
     }, todayStr, todayEnd)).toBe(false);
   });
 
-  it("returns false when neither deadline nor scheduledDate is set", () => {
+  it("returns false when neither deadline nor startDate is set", () => {
     expect(isTaskDueToday({}, todayStr, todayEnd)).toBe(false);
   });
 
-  it("deadline takes priority over scheduledDate", () => {
-    // deadline is tomorrow (false), but scheduledDate is today — deadline wins
+  it("deadline takes priority over startDate", () => {
+    // deadline is tomorrow (false), but startDate is today — deadline wins
     expect(isTaskDueToday({
       deadlineDeadline: Timestamp.fromDate(new Date("2026-04-17T22:59:59.999Z")),
       startDate: Timestamp.fromDate(new Date("2026-04-16T00:00:00Z")),

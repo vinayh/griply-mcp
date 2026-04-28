@@ -108,7 +108,7 @@ export async function createTask(
     name: string;
     taskDescription?: string;
     priority?: string;
-    scheduledDate?: string;
+    startDate?: string;
     startTime?: string;
     duration?: number;
     deadline?: string;
@@ -132,8 +132,8 @@ export async function createTask(
     description: params.taskDescription || null,
     type: TASK_TYPE.TODO,
     priority: params.priority?.toLowerCase() || "none",
-    startDate: params.scheduledDate
-      ? dateToTimestamp(params.scheduledDate)
+    startDate: params.startDate
+      ? dateToTimestamp(params.startDate)
       : Timestamp.fromDate(new Date()),
     timeslot,
     endStrategy: params.deadline
@@ -164,7 +164,7 @@ export async function createTask(
     name: params.name,
     description: params.taskDescription,
     priority: params.priority,
-    scheduledDate: params.scheduledDate,
+    startDate: params.startDate,
     startTime: params.startTime,
     duration: params.duration,
     deadline: params.deadline,
@@ -180,7 +180,7 @@ export async function updateTask(
     name?: string;
     taskDescription?: string;
     priority?: string;
-    scheduledDate?: string;
+    startDate?: string;
     startTime?: string;
     duration?: number;
     deadline?: string;
@@ -197,7 +197,7 @@ export async function updateTask(
   if (params.name !== undefined) data.name = params.name;
   if (params.taskDescription !== undefined) data.description = params.taskDescription || null;
   if (params.priority !== undefined) data.priority = params.priority.toLowerCase();
-  if (params.scheduledDate !== undefined) data.startDate = dateToTimestamp(params.scheduledDate);
+  if (params.startDate !== undefined) data.startDate = dateToTimestamp(params.startDate);
   if (params.deadline !== undefined) {
     const dl = dateToDeadlineTimestamp(params.deadline);
     data.deadlineDeadline = dl;

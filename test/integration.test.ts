@@ -118,11 +118,11 @@ describe("tasks (read)", () => {
     }
   });
 
-  it("filter=today returns tasks with deadline or scheduledDate", async () => {
+  it("filter=today returns tasks with deadline or startDate", async () => {
     const result = await tasks.listTasks(uid, { filter: "today" });
     expect(result).toBeInstanceOf(Array);
     for (const t of result) {
-      expect(t.deadline || t.scheduledDate).toBeTruthy();
+      expect(t.deadline || t.startDate).toBeTruthy();
     }
   });
 
@@ -349,7 +349,7 @@ describe("task writes", () => {
     const t = await tasks.createTask(uid, {
       name: "test-update-task",
       priority: "low",
-      scheduledDate: "2026-05-01",
+      startDate: "2026-05-01",
       deadline: "2026-05-10",
       startTime: "09:00",
       duration: 30,
@@ -360,7 +360,7 @@ describe("task writes", () => {
     await tasks.updateTask(t.id, {
       name: "test-updated-name",
       priority: "High",
-      scheduledDate: "2026-06-01",
+      startDate: "2026-06-01",
       deadline: "2026-06-15",
       startTime: "14:30",
       duration: 60,
@@ -371,7 +371,7 @@ describe("task writes", () => {
     expect(found).toBeDefined();
     expect(found!.name).toBe("test-updated-name");
     expect(found!.priority).toBe("high");
-    expect(found!.scheduledDate).toBe("2026-06-01T00:00:00.000Z");
+    expect(found!.startDate).toBe("2026-06-01T00:00:00.000Z");
     expect(found!.deadline).toBe("2026-06-15T22:59:59.999Z");
     expect(found!.startTime).toBe("14:30");
     expect(found!.duration).toBe(60);

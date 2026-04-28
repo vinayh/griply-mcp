@@ -107,7 +107,7 @@ export function getDeadlineTimestamp(data: Record<string, unknown>): Timestamp |
   return (data.deadlineDeadline ?? endStrategy?.deadline ?? null) as Timestamp | null;
 }
 
-/** Check whether a raw Firestore task doc is due today (by deadline or scheduledDate). */
+/** Check whether a raw Firestore task doc is due today (by deadline or startDate). */
 export function isTaskDueToday(
   data: Record<string, unknown>,
   todayStr: string,
@@ -131,7 +131,7 @@ export function docToTask(id: string, data: Record<string, unknown>): Task {
     name: data.name as string,
     description: str(data.description),
     priority: str(data.priority),
-    scheduledDate: timestampToISO(data.startDate),
+    startDate: timestampToISO(data.startDate),
     startTime: timeslot?.startTime != null
       ? msToTimeString(timeslot.startTime as number)
       : undefined,

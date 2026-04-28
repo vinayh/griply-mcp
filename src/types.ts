@@ -30,7 +30,7 @@ export interface Task {
   name: string;
   description?: string;
   priority?: string;
-  scheduledDate?: string;
+  startDate?: string;
   startTime?: string;
   duration?: number;
   deadline?: string;
@@ -129,10 +129,14 @@ export const createTaskSchema = z.object({
   name: z.string().describe("Task name"),
   taskDescription: z.string().optional().describe("Task description"),
   priority: z.string().optional().describe("Priority: High, Medium, or Low"),
-  scheduledDate: z.string().optional().describe("Scheduled date (YYYY-MM-DD)"),
+  startDate: z.string().optional().describe(
+    "Date the task is scheduled to be worked on / appears on that day's list (YYYY-MM-DD). This is NOT a deadline."
+  ),
   startTime: z.string().optional().describe("Start time (HH:MM)"),
   duration: z.number().optional().describe("Duration in minutes"),
-  deadline: z.string().optional().describe("Deadline (YYYY-MM-DD)"),
+  deadline: z.string().optional().describe(
+    "Hard due-by date — the task must be completed by this date (YYYY-MM-DD)."
+  ),
   goalId: z.string().optional().describe("Link to a goal by ID"),
   lifeAreaId: z.string().optional().describe("Link to a life area by ID"),
   parentTaskId: z.string().optional().describe("Parent task ID for subtasks"),
@@ -143,10 +147,14 @@ export const updateTaskSchema = z.object({
   name: z.string().optional().describe("New task name"),
   taskDescription: z.string().optional().describe("New description"),
   priority: z.string().optional().describe("Priority: High, Medium, Low, or None"),
-  scheduledDate: z.string().optional().describe("Scheduled date (YYYY-MM-DD)"),
+  startDate: z.string().optional().describe(
+    "Date the task is scheduled to be worked on / appears on that day's list (YYYY-MM-DD). This is NOT a deadline."
+  ),
   startTime: z.string().optional().describe("Start time (HH:MM)"),
   duration: z.number().optional().describe("Duration in minutes"),
-  deadline: z.string().optional().describe("Deadline (YYYY-MM-DD)"),
+  deadline: z.string().optional().describe(
+    "Hard due-by date — the task must be completed by this date (YYYY-MM-DD)."
+  ),
   goalId: z.string().optional().describe("Link to a goal by ID"),
   lifeAreaId: z.string().optional().describe("Link to a life area by ID"),
 });

@@ -10,7 +10,7 @@ import type { Task, Habit } from "./types.js";
 // ── Constants ──
 
 export const TASK_TYPE = { TODO: "todo", HABIT: "habit", REPEATING: "repeating" } as const;
-export const DEFAULT_TIMEZONE = "America/New_York";
+export const DEFAULT_TIMEZONE = process.env.GRIPLY_TIMEZONE || "America/New_York";
 export const MS_PER_MINUTE = 60_000;
 export const MS_PER_HOUR = 3_600_000;
 
@@ -26,12 +26,43 @@ export function timestampToDateStr(ts: unknown): string | undefined {
   return ts.toDate().toISOString().split("T")[0];
 }
 
-export function dateToDeadlineTimestamp(dateStr: string): Timestamp {
+/** YYYY-MM-DD as rendered in tz — collapses Griply's two storage anchors back to the calendar date the user picked. */
+export function timestampToTzDateStr(ts: unknown, tz: string = DEFAULT_TIMEZONE): string | undefined {
+  if (!ts || !(ts instanceof Timestamp)) return undefined;
+  return ts.toDate().toLocaleDateString("en-CA", { timeZone: tz });
+}
+
+/** Encode a Griply UI "Date" (start date). Griply anchors these at 1ms before UTC midnight. */
+export function dateToStartTimestamp(dateStr: string): Timestamp {
   return Timestamp.fromDate(new Date(dateStr + "T22:59:59.999Z"));
+}
+
+/** Encode a Griply UI "Deadline" — anchored at midnight at the *start* of dateStr in the user's timezone. */
+export function dateToDeadlineTimestamp(dateStr: string, tz: string = DEFAULT_TIMEZONE): Timestamp {
+  const naive = new Date(dateStr + "T00:00:00Z");
+  const offsetMin = getTzOffsetMinutes(naive, tz);
+  return Timestamp.fromDate(new Date(naive.getTime() - offsetMin * MS_PER_MINUTE));
 }
 
 export function dateToTimestamp(dateStr: string): Timestamp {
   return Timestamp.fromDate(new Date(dateStr));
+}
+
+function getTzOffsetMinutes(date: Date, tz: string): number {
+  const dtf = new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz, hourCycle: "h23",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+  });
+  const parts: Record<string, number> = {};
+  for (const p of dtf.formatToParts(date)) {
+    if (p.type !== "literal") parts[p.type] = Number(p.value);
+  }
+  const asIfLocal = Date.UTC(
+    parts.year!, parts.month! - 1, parts.day!,
+    parts.hour!, parts.minute!, parts.second!,
+  );
+  return Math.round((asIfLocal - date.getTime()) / MS_PER_MINUTE);
 }
 
 // ── Time-of-day helpers ──
@@ -101,42 +132,50 @@ export function userFilter(uid: string): QueryConstraint {
 
 // ── Document converters ──
 
-/** Extract deadline from raw Firestore data. deadlineDeadline is preferred; endStrategy.deadline is the fallback. */
-export function getDeadlineTimestamp(data: Record<string, unknown>): Timestamp | null {
+/** Extract the UI "Date" (start date). Griply stores it under endStrategy.deadline. */
+export function getStartTimestamp(data: Record<string, unknown>): Timestamp | null {
   const endStrategy = data.endStrategy as Record<string, unknown> | null;
-  return (data.deadlineDeadline ?? endStrategy?.deadline ?? null) as Timestamp | null;
+  const ts = endStrategy?.deadline;
+  return ts instanceof Timestamp ? ts : null;
 }
 
-/** Check whether a raw Firestore task doc is due today (by deadline or startDate). */
+/** Extract the UI "Deadline". Griply mirrors the start date into deadlineDeadline when no
+ *  UI Deadline is set, so a deadlineDeadline equal to endStrategy.deadline is not a real deadline. */
+export function getDeadlineTimestamp(data: Record<string, unknown>): Timestamp | null {
+  const dl = data.deadlineDeadline;
+  if (!(dl instanceof Timestamp)) return null;
+  const start = getStartTimestamp(data);
+  if (start && start.isEqual(dl)) return null;
+  return dl;
+}
+
+/** Check whether a raw Firestore task doc is due today — start date is today, or deadline is today/past. */
 export function isTaskDueToday(
   data: Record<string, unknown>,
   todayStr: string,
   todayEnd: Date
 ): boolean {
-  const dl = getDeadlineTimestamp(data);
-  if (dl) return dl.toDate() <= todayEnd;
-  const startDate = data.startDate as Timestamp | null;
-  if (startDate && startDate instanceof Timestamp) {
-    return startDate.toDate().toISOString().split("T")[0] === todayStr;
-  }
+  const start = getStartTimestamp(data);
+  if (start && start.toDate().toISOString().split("T")[0] === todayStr) return true;
+  const dl = data.deadlineDeadline;
+  if (dl instanceof Timestamp && dl.toDate() <= todayEnd) return true;
   return false;
 }
 
 export function docToTask(id: string, data: Record<string, unknown>): Task {
   const timeslot = data.timeslot as Record<string, unknown> | null;
-  const dl = getDeadlineTimestamp(data);
 
   return {
     id,
     name: data.name as string,
     description: str(data.description),
     priority: str(data.priority),
-    startDate: timestampToISO(data.startDate),
+    startDate: timestampToTzDateStr(getStartTimestamp(data)),
     startTime: timeslot?.startTime != null
       ? msToTimeString(timeslot.startTime as number)
       : undefined,
     duration: msToDurationMinutes(timeslot?.duration),
-    deadline: timestampToISO(dl),
+    deadline: timestampToTzDateStr(getDeadlineTimestamp(data)),
     goalId: str(data.goalId),
     lifeAreaId: str(data.lifeAreaId),
     parentTaskId: firstId(data.parentIds),

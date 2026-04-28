@@ -15,3 +15,6 @@ export function loadEnvFile(filePath: string) {
 }
 
 loadEnvFile(resolve(process.cwd(), ".env"));
+
+// Pin tz for deadline-encoding assertions; honor an existing env value.
+if (!process.env.GRIPLY_TIMEZONE) process.env.GRIPLY_TIMEZONE = "Europe/London";

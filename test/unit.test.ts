@@ -5,6 +5,7 @@ import {
   timestampToISO,
   timestampToDateStr,
   dateToDeadlineTimestamp,
+  dateToStartTimestamp,
   dateToTimestamp,
   msToTimeString,
   timeStringToMs,
@@ -60,15 +61,32 @@ describe("timestampToDateStr", () => {
   });
 });
 
+describe("dateToStartTimestamp", () => {
+  it("anchors at 22:59:59.999 UTC of the given date (Griply UI 'Date' convention)", () => {
+    const ts = dateToStartTimestamp("2026-04-15");
+    expect(ts.toDate().toISOString()).toBe("2026-04-15T22:59:59.999Z");
+  });
+});
+
 describe("dateToDeadlineTimestamp", () => {
-  it("creates a Timestamp at 22:59:59.999 UTC", () => {
-    const ts = dateToDeadlineTimestamp("2026-04-15");
-    const d = ts.toDate();
-    expect(d.getUTCHours()).toBe(22);
-    expect(d.getUTCMinutes()).toBe(59);
-    expect(d.getUTCSeconds()).toBe(59);
-    expect(d.getUTCMilliseconds()).toBe(999);
-    expect(d.toISOString().startsWith("2026-04-15")).toBe(true);
+  it("anchors at midnight at start of date in tz (Europe/London BST → previous-day 23:00 UTC)", () => {
+    expect(dateToDeadlineTimestamp("2026-05-01", "Europe/London").toDate().toISOString())
+      .toBe("2026-04-30T23:00:00.000Z");
+  });
+
+  it("anchors at midnight at start of date in tz (Europe/London GMT → previous-day 00:00 UTC)", () => {
+    expect(dateToDeadlineTimestamp("2026-01-15", "Europe/London").toDate().toISOString())
+      .toBe("2026-01-15T00:00:00.000Z");
+  });
+
+  it("anchors at midnight at start of date in tz (America/New_York EDT → same-day 04:00 UTC)", () => {
+    expect(dateToDeadlineTimestamp("2026-06-15", "America/New_York").toDate().toISOString())
+      .toBe("2026-06-15T04:00:00.000Z");
+  });
+
+  it("anchors at midnight at start of date in tz (UTC → same-day 00:00 UTC)", () => {
+    expect(dateToDeadlineTimestamp("2026-04-15", "UTC").toDate().toISOString())
+      .toBe("2026-04-15T00:00:00.000Z");
   });
 });
 
@@ -306,36 +324,52 @@ describe("docToTask", () => {
     expect(task.name).toBe("Test task");
     expect(task.startTime).toBeUndefined();
     expect(task.duration).toBeUndefined();
+    expect(task.startDate).toBeUndefined();
     expect(task.deadline).toBeUndefined();
     expect(task.isCompleted).toBe(false);
   });
 
-  it("prefers deadlineDeadline over endStrategy.deadline", () => {
+  it("exposes start date as YYYY-MM-DD in user tz (Europe/London BST: T22:59:59.999Z → next-day midnight)", () => {
     const task = docToTask("id2", {
-      name: "Deadline test",
-      startDate: null,
+      name: "Start-only test",
+      startDate: Timestamp.fromDate(new Date("2026-04-01T13:49:55Z")),
       timeslot: null,
-      endStrategy: { deadline: Timestamp.fromDate(new Date("2026-04-10")) },
-      deadlineDeadline: Timestamp.fromDate(new Date("2026-04-16")),
+      endStrategy: { deadline: Timestamp.fromDate(new Date("2026-04-10T22:59:59.999Z")) },
+      deadlineDeadline: Timestamp.fromDate(new Date("2026-04-10T22:59:59.999Z")),
       completedAt: null,
     });
-    expect(task.deadline).toBe("2026-04-16T00:00:00.000Z");
+    expect(task.startDate).toBe("2026-04-10");
+    expect(task.deadline).toBeUndefined();
   });
 
-  it("falls back to endStrategy.deadline when deadlineDeadline is null", () => {
+  it("exposes deadline only when deadlineDeadline differs from endStrategy.deadline", () => {
     const task = docToTask("id3", {
-      name: "Fallback test",
-      startDate: null,
+      name: "Both dates test",
+      startDate: Timestamp.fromDate(new Date("2026-04-01T13:49:55Z")),
       timeslot: null,
-      endStrategy: { deadline: Timestamp.fromDate(new Date("2026-04-10")) },
-      deadlineDeadline: null,
+      endStrategy: { deadline: Timestamp.fromDate(new Date("2026-04-10T22:59:59.999Z")) },
+      deadlineDeadline: Timestamp.fromDate(new Date("2026-04-15T23:00:00.000Z")),
       completedAt: null,
     });
-    expect(task.deadline).toBe("2026-04-10T00:00:00.000Z");
+    expect(task.startDate).toBe("2026-04-10");
+    expect(task.deadline).toBe("2026-04-16");
+  });
+
+  it("exposes deadline-only task (no start date)", () => {
+    const task = docToTask("id4", {
+      name: "Deadline-only test",
+      startDate: null,
+      timeslot: null,
+      endStrategy: null,
+      deadlineDeadline: Timestamp.fromDate(new Date("2026-04-15T23:00:00.000Z")),
+      completedAt: null,
+    });
+    expect(task.startDate).toBeUndefined();
+    expect(task.deadline).toBe("2026-04-16");
   });
 
   it("extracts startTime and duration from timeslot", () => {
-    const task = docToTask("id4", {
+    const task = docToTask("id5", {
       name: "Timed task",
       startDate: null,
       timeslot: { startTime: 9 * 3_600_000 + 30 * 60_000, duration: 2_700_000 },
@@ -348,7 +382,7 @@ describe("docToTask", () => {
   });
 
   it("marks completed tasks", () => {
-    const task = docToTask("id5", {
+    const task = docToTask("id6", {
       name: "Done task",
       startDate: null,
       timeslot: null,
@@ -360,7 +394,7 @@ describe("docToTask", () => {
   });
 
   it("extracts goalId, lifeAreaId, and parentTaskId", () => {
-    const task = docToTask("id6", {
+    const task = docToTask("id7", {
       name: "Linked task",
       startDate: null,
       timeslot: null,
@@ -380,26 +414,32 @@ describe("docToTask", () => {
 // ── getDeadlineTimestamp ──
 
 describe("getDeadlineTimestamp", () => {
-  it("prefers deadlineDeadline over endStrategy.deadline", () => {
-    const ts1 = Timestamp.fromDate(new Date("2026-04-16"));
-    const ts2 = Timestamp.fromDate(new Date("2026-04-10"));
-    const result = getDeadlineTimestamp({
-      deadlineDeadline: ts1,
-      endStrategy: { deadline: ts2 },
-    });
-    expect(result).toBe(ts1);
+  it("returns deadlineDeadline when it differs from endStrategy.deadline", () => {
+    const start = Timestamp.fromDate(new Date("2026-04-10T22:59:59.999Z"));
+    const dl = Timestamp.fromDate(new Date("2026-04-16T22:59:59.999Z"));
+    expect(getDeadlineTimestamp({
+      deadlineDeadline: dl,
+      endStrategy: { deadline: start },
+    })).toBe(dl);
   });
 
-  it("falls back to endStrategy.deadline when deadlineDeadline is null", () => {
-    const ts = Timestamp.fromDate(new Date("2026-04-10"));
-    const result = getDeadlineTimestamp({
-      deadlineDeadline: null,
+  it("returns null when deadlineDeadline mirrors endStrategy.deadline", () => {
+    const ts = Timestamp.fromDate(new Date("2026-04-10T22:59:59.999Z"));
+    expect(getDeadlineTimestamp({
+      deadlineDeadline: ts,
       endStrategy: { deadline: ts },
-    });
-    expect(result).toBe(ts);
+    })).toBeNull();
   });
 
-  it("returns null when both are absent", () => {
+  it("returns deadlineDeadline when there is no start date", () => {
+    const ts = Timestamp.fromDate(new Date("2026-04-16T22:59:59.999Z"));
+    expect(getDeadlineTimestamp({
+      deadlineDeadline: ts,
+      endStrategy: null,
+    })).toBe(ts);
+  });
+
+  it("returns null when deadlineDeadline is absent", () => {
     expect(getDeadlineTimestamp({ endStrategy: null })).toBeNull();
     expect(getDeadlineTimestamp({})).toBeNull();
   });
@@ -432,28 +472,27 @@ describe("isTaskDueToday", () => {
     }, todayStr, todayEnd)).toBe(false);
   });
 
-  it("returns true when startDate matches today", () => {
+  it("returns true when start date (endStrategy.deadline) is today", () => {
     expect(isTaskDueToday({
-      startDate: Timestamp.fromDate(new Date("2026-04-16T00:00:00Z")),
+      endStrategy: { deadline: Timestamp.fromDate(new Date("2026-04-16T22:59:59.999Z")) },
     }, todayStr, todayEnd)).toBe(true);
   });
 
-  it("returns false when startDate is a different day", () => {
+  it("returns false when start date is a different day and no deadline is set", () => {
     expect(isTaskDueToday({
-      startDate: Timestamp.fromDate(new Date("2026-04-15T00:00:00Z")),
+      endStrategy: { deadline: Timestamp.fromDate(new Date("2026-04-15T22:59:59.999Z")) },
     }, todayStr, todayEnd)).toBe(false);
   });
 
-  it("returns false when neither deadline nor startDate is set", () => {
+  it("returns false when neither deadline nor start date is set", () => {
     expect(isTaskDueToday({}, todayStr, todayEnd)).toBe(false);
   });
 
-  it("deadline takes priority over startDate", () => {
-    // deadline is tomorrow (false), but startDate is today — deadline wins
+  it("returns true when start date is today even with a far-future deadline", () => {
     expect(isTaskDueToday({
-      deadlineDeadline: Timestamp.fromDate(new Date("2026-04-17T22:59:59.999Z")),
-      startDate: Timestamp.fromDate(new Date("2026-04-16T00:00:00Z")),
-    }, todayStr, todayEnd)).toBe(false);
+      endStrategy: { deadline: Timestamp.fromDate(new Date("2026-04-16T22:59:59.999Z")) },
+      deadlineDeadline: Timestamp.fromDate(new Date("2026-04-30T22:59:59.999Z")),
+    }, todayStr, todayEnd)).toBe(true);
   });
 });
 

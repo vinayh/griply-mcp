@@ -371,8 +371,8 @@ describe("task writes", () => {
     expect(found).toBeDefined();
     expect(found!.name).toBe("test-updated-name");
     expect(found!.priority).toBe("high");
-    expect(found!.startDate).toBe("2026-06-01T00:00:00.000Z");
-    expect(found!.deadline).toBe("2026-06-15T22:59:59.999Z");
+    expect(found!.startDate).toBe("2026-06-01");
+    expect(found!.deadline).toBe("2026-06-15");
     expect(found!.startTime).toBe("14:30");
     expect(found!.duration).toBe(60);
 
@@ -386,7 +386,7 @@ describe("task writes", () => {
     const all = await tasks.listTasks(uid, { filter: "all" });
     const found = all.find((x) => x.id === t.id);
     expect(found).toBeDefined();
-    expect(found!.deadline).toBe("2026-07-20T22:59:59.999Z");
+    expect(found!.deadline).toBe("2026-07-20");
 
     await tasks.deleteTask(t.id);
   });
@@ -412,7 +412,7 @@ describe("task writes", () => {
     const all = await tasks.listTasks(uid, { filter: "all" });
     const found = all.find((x) => x.id === t.id);
     expect(found).toBeDefined();
-    expect(found!.deadline).toBe("2026-08-01T22:59:59.999Z");
+    expect(found!.deadline).toBe("2026-08-01");
 
     await tasks.deleteTask(t.id);
   });

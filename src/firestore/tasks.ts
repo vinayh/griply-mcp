@@ -20,7 +20,7 @@ import {
   isTaskDueToday,
   getTodayStr,
   dateToDeadlineTimestamp,
-  dateToTimestamp,
+  dateToStartTimestamp,
   timeStringToMs,
   makeRoles,
   tasksRef,
@@ -132,12 +132,10 @@ export async function createTask(
     description: params.taskDescription || null,
     type: TASK_TYPE.TODO,
     priority: params.priority?.toLowerCase() || "none",
-    startDate: params.startDate
-      ? dateToTimestamp(params.startDate)
-      : Timestamp.fromDate(new Date()),
+    startDate: Timestamp.fromDate(new Date()),
     timeslot,
-    endStrategy: params.deadline
-      ? { completionCount: null, deadline: dateToDeadlineTimestamp(params.deadline) }
+    endStrategy: params.startDate
+      ? { completionCount: null, deadline: dateToStartTimestamp(params.startDate) }
       : null,
     deadlineDeadline: params.deadline
       ? dateToDeadlineTimestamp(params.deadline)
@@ -197,15 +195,16 @@ export async function updateTask(
   if (params.name !== undefined) data.name = params.name;
   if (params.taskDescription !== undefined) data.description = params.taskDescription || null;
   if (params.priority !== undefined) data.priority = params.priority.toLowerCase();
-  if (params.startDate !== undefined) data.startDate = dateToTimestamp(params.startDate);
-  if (params.deadline !== undefined) {
-    const dl = dateToDeadlineTimestamp(params.deadline);
-    data.deadlineDeadline = dl;
+  if (params.startDate !== undefined) {
+    const newStart = dateToStartTimestamp(params.startDate);
     if (data.endStrategy) {
-      data.endStrategy.deadline = dl;
+      (data.endStrategy as Record<string, unknown>).deadline = newStart;
     } else {
-      data.endStrategy = { completionCount: null, deadline: dl };
+      data.endStrategy = { completionCount: null, deadline: newStart };
     }
+  }
+  if (params.deadline !== undefined) {
+    data.deadlineDeadline = dateToDeadlineTimestamp(params.deadline);
   }
   if (params.goalId !== undefined) data.goalId = params.goalId || null;
   if (params.lifeAreaId !== undefined) data.lifeAreaId = params.lifeAreaId || null;

@@ -371,7 +371,7 @@ describe("task writes", () => {
     expect(found).toBeDefined();
     expect(found!.name).toBe("test-updated-name");
     expect(found!.priority).toBe("high");
-    expect(found!.startDate).toBe("2026-06-01");
+    expect(found!.startDate).toBe("2026-06-01T14:30+01:00");
     expect(found!.deadline).toBe("2026-06-15");
     expect(found!.startTime).toBe("14:30");
     expect(found!.duration).toBe(60);

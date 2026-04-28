@@ -36,7 +36,10 @@ Create a `.env` file:
 ```
 GRIPLY_EMAIL=your-email@example.com
 GRIPLY_PASSWORD=your-password
+GRIPLY_TIMEZONE=Europe/London   # optional, IANA tz name; defaults to America/New_York
 ```
+
+`GRIPLY_TIMEZONE` is used to encode deadlines (Griply anchors them at midnight in the user's local timezone) and to format the `startDate`/`deadline` output as calendar dates the user picked. Set it to whatever timezone your Griply client uses.
 
 ## Usage with Claude Code
 

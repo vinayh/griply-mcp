@@ -368,6 +368,31 @@ describe("docToTask", () => {
     expect(task.deadline).toBe("2026-04-16");
   });
 
+  it("includes time-of-day in startDate when timeslot.startTime is set (BST date)", () => {
+    const task = docToTask("id4b", {
+      name: "Start with time",
+      startDate: null,
+      timeslot: { startTime: 9 * 3_600_000 + 30 * 60_000, duration: null },
+      endStrategy: { deadline: Timestamp.fromDate(new Date("2026-06-01T22:59:59.999Z")) },
+      deadlineDeadline: null,
+      completedAt: null,
+    });
+    expect(task.startDate).toBe("2026-06-01T09:30+01:00");
+    expect(task.startTime).toBe("09:30");
+  });
+
+  it("includes time-of-day in startDate when timeslot.startTime is set (GMT date)", () => {
+    const task = docToTask("id4c", {
+      name: "Start with time, winter",
+      startDate: null,
+      timeslot: { startTime: 14 * 3_600_000 + 0, duration: null },
+      endStrategy: { deadline: Timestamp.fromDate(new Date("2026-01-15T23:59:59.999Z")) },
+      deadlineDeadline: null,
+      completedAt: null,
+    });
+    expect(task.startDate).toBe("2026-01-15T14:00+00:00");
+  });
+
   it("extracts startTime and duration from timeslot", () => {
     const task = docToTask("id5", {
       name: "Timed task",

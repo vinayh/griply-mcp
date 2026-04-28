@@ -32,6 +32,28 @@ export function timestampToTzDateStr(ts: unknown, tz: string = DEFAULT_TIMEZONE)
   return ts.toDate().toLocaleDateString("en-CA", { timeZone: tz });
 }
 
+/** Compose start-date output: YYYY-MM-DD when no time is set, or local ISO (`YYYY-MM-DDTHH:MM±OFFSET`) when timeslot.startTime is set. */
+export function startDateOutput(
+  startTs: Timestamp | null,
+  timeslotStartMs: unknown,
+  tz: string = DEFAULT_TIMEZONE,
+): string | undefined {
+  if (!startTs) return undefined;
+  const dateStr = startTs.toDate().toLocaleDateString("en-CA", { timeZone: tz });
+  if (typeof timeslotStartMs !== "number") return dateStr;
+  const hh = String(Math.floor(timeslotStartMs / MS_PER_HOUR)).padStart(2, "0");
+  const mm = String(Math.floor((timeslotStartMs % MS_PER_HOUR) / MS_PER_MINUTE)).padStart(2, "0");
+  const probe = new Date(`${dateStr}T${hh}:${mm}:00Z`);
+  return `${dateStr}T${hh}:${mm}${formatOffset(getTzOffsetMinutes(probe, tz))}`;
+}
+
+function formatOffset(min: number): string {
+  if (min === 0) return "+00:00";
+  const sign = min > 0 ? "+" : "-";
+  const abs = Math.abs(min);
+  return `${sign}${String(Math.floor(abs / 60)).padStart(2, "0")}:${String(abs % 60).padStart(2, "0")}`;
+}
+
 /** Encode a Griply UI "Date" (start date). Griply anchors these at 1ms before UTC midnight. */
 export function dateToStartTimestamp(dateStr: string): Timestamp {
   return Timestamp.fromDate(new Date(dateStr + "T22:59:59.999Z"));
@@ -170,7 +192,7 @@ export function docToTask(id: string, data: Record<string, unknown>): Task {
     name: data.name as string,
     description: str(data.description),
     priority: str(data.priority),
-    startDate: timestampToTzDateStr(getStartTimestamp(data)),
+    startDate: startDateOutput(getStartTimestamp(data), timeslot?.startTime),
     startTime: timeslot?.startTime != null
       ? msToTimeString(timeslot.startTime as number)
       : undefined,

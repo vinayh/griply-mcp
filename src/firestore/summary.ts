@@ -40,6 +40,7 @@ export async function getTodaySummary(
 
   for (const d of allTodoSnap.docs) {
     const data = d.data();
+    if (data.deletedAt != null) continue;
     const completedAt = data.completedAt as Timestamp | null;
 
     if (completedAt && completedAt instanceof Timestamp) {
@@ -67,7 +68,9 @@ export async function getTodaySummary(
   let completedHabitCount = 0;
 
   for (const d of habitsSnap.docs) {
-    const habit = docToHabit(d.id, d.data(), todayStr);
+    const data = d.data();
+    if (data.deletedAt != null) continue;
+    const habit = docToHabit(d.id, data, todayStr);
     if (habit.completedToday) completedHabitCount++;
     habits.push(habit);
   }

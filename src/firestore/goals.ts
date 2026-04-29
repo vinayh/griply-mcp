@@ -101,12 +101,14 @@ export async function getGoal(
 
   return {
     ...docToGoal(goalDoc.id, goalDoc.data()),
-    tasks: tasksSnap.docs.map((d) => ({
-      id: d.id,
-      name: d.data().name,
-      isCompleted: d.data().completedAt != null,
-      priority: d.data().priority,
-    })),
+    tasks: tasksSnap.docs
+      .filter((d) => d.data().deletedAt == null)
+      .map((d) => ({
+        id: d.id,
+        name: d.data().name,
+        isCompleted: d.data().completedAt != null,
+        priority: d.data().priority,
+      })),
   };
 }
 

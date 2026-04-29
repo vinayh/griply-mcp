@@ -26,3 +26,13 @@ Storage anchors differ between the two pickers and matter for round-trip correct
 Griply does **not** mirror the start date into `deadlineDeadline` for fresh docs. Some legacy docs do have a mirror, so reads suppress `deadlineDeadline` when it equals `endStrategy.deadline` (`getDeadlineTimestamp` in `src/utils.ts`).
 
 The MCP surface emits `startDate` and `deadline` as `YYYY-MM-DD` (in `DEFAULT_TIMEZONE`); `startDate` upgrades to `YYYY-MM-DDTHH:MM±OFFSET` when `timeslot.startTime` is set.
+
+## Soft delete via `deletedAt` (read-only on the client)
+
+Griply's mobile app soft-deletes tasks and habits by stamping a `deletedAt` timestamp — it does **not** remove the doc. The field is **absent** on live docs (not `null`), so `where("deletedAt", "==", null)` would exclude every live doc and is unusable. All read paths that hit the `tasks` collection therefore filter `deletedAt != null` in code after the query (`listTasks`, `listHabits`, `getGoal`'s linked tasks, `getTodaySummary`).
+
+The mobile app reaches the soft-delete path via a Cloud Function. The Firebase JS SDK can't replicate that: Griply's security rules reject any client `updateDoc` writing `deletedAt` or `archivedAt` (verified: `PERMISSION_DENIED`). `deleteDoc` is permitted, so the `delete_task` tool **hard-deletes**. The observable outcome is the same (doc gone from reads); only the on-disk artifact differs.
+
+## Bundling caveat
+
+Do not run the server from `bun build` output against Firestore. Bun's bundler swaps in the browser-side gRPC-Web transport, which can't open the Firestore listen stream from Node and silently degrades to "offline mode" — every query returns empty. Run `bun src/index.ts` directly, or rebuild with `--external firebase` and ship `node_modules` if you need a bundle (e.g. for the container image).

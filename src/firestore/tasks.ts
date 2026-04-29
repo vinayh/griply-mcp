@@ -69,7 +69,7 @@ export async function listTasks(
   const snapshot = await getDocs(
     query(tasksRef(), ...constraints, orderBy("createdAt", "asc"))
   );
-  let docs = snapshot.docs;
+  let docs = snapshot.docs.filter((d) => d.data().deletedAt == null);
   if (opts.filter === "today") {
     const todayStr = getTodayStr();
     const todayEnd = new Date(todayStr + "T23:59:59.999Z");
@@ -233,5 +233,9 @@ export async function completeTask(taskId: string): Promise<void> {
 }
 
 export async function deleteTask(taskId: string): Promise<void> {
+  // Hard-delete via Firestore SDK. Griply's mobile app soft-deletes (sets `deletedAt`)
+  // through a Cloud Function we can't reach from the client SDK; client-side writes
+  // to `deletedAt` and `archivedAt` are blocked by security rules. Hard-delete still
+  // produces the same observable outcome (doc gone, excluded from reads).
   await deleteDoc(doc(getDb(), "tasks", taskId));
 }

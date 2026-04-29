@@ -8,7 +8,6 @@
     "griply-mcp": "src/index.ts"
   },
   "scripts": {
-    "build": "bun build src/index.ts --outdir dist --target bun",
     "start": "bun src/index.ts",
     "dev": "bun --watch src/index.ts",
     "test": "bun test",

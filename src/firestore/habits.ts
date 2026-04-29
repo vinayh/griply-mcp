@@ -32,7 +32,9 @@ export async function listHabits(uid: string): Promise<Habit[]> {
       orderBy("createdAt", "asc")
     )
   );
-  return snapshot.docs.map((d) => docToHabit(d.id, d.data(), todayStr));
+  return snapshot.docs
+    .filter((d) => d.data().deletedAt == null)
+    .map((d) => docToHabit(d.id, d.data(), todayStr));
 }
 
 export async function addHabitOccurrence(

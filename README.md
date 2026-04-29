@@ -76,7 +76,7 @@ Add to `~/.claude/settings.json`:
 | `create_task` | Create a new task with optional priority, deadline, time slot, and goal link |
 | `update_task` | Update an existing task's name, priority, dates, or time slot |
 | `complete_task` | Mark a task as completed |
-| `delete_task` | Delete a task |
+| `delete_task` | Hard-delete a task. The Griply mobile app soft-deletes via a Cloud Function we can't reach from the client SDK; reads filter out mobile-app soft-deletes (`deletedAt`) so the result is symmetric. |
 
 ### Habits
 
@@ -96,8 +96,9 @@ Add to `~/.claude/settings.json`:
 ```bash
 bun dev        # run with --watch
 bun test       # run tests (requires .env + config)
-bun run build  # bundle to dist/ (optional)
 ```
+
+Run `src/index.ts` directly with `bun` — there is no bundle step. `bun build` against this codebase produces a non-functional artifact because the bundler swaps Firestore's gRPC transport for the browser-side gRPC-Web one, which can't open Firestore's listen stream from Node and silently falls back to offline mode.
 
 ## Architecture
 

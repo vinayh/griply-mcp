@@ -14,7 +14,14 @@ type GriplyCredentials = {
 };
 
 async function getBunSecret(service: string, name: string): Promise<string | null> {
-  return secrets.get({ service, name });
+  // Treat platform errors (e.g. libsecret missing on Linux) as "not present" so the
+  // env-var fallback in resolveGriplyCredentials still runs. Without this, Bun.secrets
+  // throws ERR_SECRETS_PLATFORM_ERROR before the fallback is reached.
+  try {
+    return await secrets.get({ service, name });
+  } catch {
+    return null;
+  }
 }
 
 export async function resolveGriplyCredentials(

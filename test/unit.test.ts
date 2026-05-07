@@ -12,18 +12,20 @@ import {
   msToDurationMinutes,
   getTodayStr,
   getTodayRange,
+} from "../src/datetime.js";
+import {
   str,
   firstId,
-  makeRoles,
   getDeadlineTimestamp,
   isTaskDueToday,
   docToTask,
   docToHabit,
   getCurrentSchedule,
   countTodayEntries,
-  textResult,
-  jsonResult,
-} from "../src/utils.js";
+} from "../src/converters.js";
+import { makeRoles } from "../src/firestore/refs.js";
+import { textResult, jsonResult } from "../src/mcp.js";
+import { listTasksSchema, TASK_FILTERS } from "../src/types.js";
 
 // ── Timestamp helpers ──
 
@@ -518,6 +520,32 @@ describe("isTaskDueToday", () => {
       endStrategy: { deadline: Timestamp.fromDate(new Date("2026-04-16T22:59:59.999Z")) },
       deadlineDeadline: Timestamp.fromDate(new Date("2026-04-30T22:59:59.999Z")),
     }, todayStr, todayEnd)).toBe(true);
+  });
+
+  it("returns false when deadlineDeadline mirrors a past endStrategy.deadline (legacy mirror is not a real deadline)", () => {
+    const yesterday = Timestamp.fromDate(new Date("2026-04-15T22:59:59.999Z"));
+    expect(isTaskDueToday({
+      endStrategy: { deadline: yesterday },
+      deadlineDeadline: yesterday,
+    }, todayStr, todayEnd)).toBe(false);
+  });
+});
+
+// ── listTasksSchema filter validation ──
+
+describe("listTasksSchema.filter", () => {
+  it("accepts each known filter value", () => {
+    for (const f of TASK_FILTERS) {
+      expect(listTasksSchema.safeParse({ filter: f }).success).toBe(true);
+    }
+  });
+
+  it("rejects unknown filter values", () => {
+    expect(listTasksSchema.safeParse({ filter: "unknown_filter" }).success).toBe(false);
+  });
+
+  it("rejects a missing filter", () => {
+    expect(listTasksSchema.safeParse({}).success).toBe(false);
   });
 });
 

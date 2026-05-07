@@ -158,14 +158,6 @@ describe("tasks (read)", () => {
     expect(result).toBeInstanceOf(Array);
   });
 
-  it("unknown filter falls back to default (returns uncompleted tasks)", async () => {
-    const result = await tasks.listTasks(uid, { filter: "unknown_filter" });
-    expect(result).toBeInstanceOf(Array);
-    for (const t of result) {
-      expect(t.isCompleted).toBe(false);
-    }
-  });
-
   it("nonexistent goalId returns empty array", async () => {
     const result = await tasks.listTasks(uid, { filter: "all", goalId: "nonexistent_goal_id" });
     expect(result).toEqual([]);

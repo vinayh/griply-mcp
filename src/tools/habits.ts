@@ -2,7 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { ensureAuth } from "../firebase/auth.js";
 import * as habits from "../firestore/habits.js";
 import { listHabitsSchema, addHabitOccurrenceSchema } from "../types.js";
-import { jsonResult, textResult } from "../utils.js";
+import { jsonResult, textResult } from "../mcp.js";
 
 export function registerHabitTools(server: McpServer): void {
   server.tool("list_habits", "List active habits with recent occurrences", listHabitsSchema.shape,

@@ -8,7 +8,7 @@ import {
   completeTaskSchema,
   deleteTaskSchema,
 } from "../types.js";
-import { jsonResult, textResult } from "../utils.js";
+import { jsonResult, textResult } from "../mcp.js";
 
 export function registerTaskTools(server: McpServer): void {
   server.tool("list_tasks", "List tasks with a filter", listTasksSchema.shape,

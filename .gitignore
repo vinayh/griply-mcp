@@ -28,3 +28,4 @@ PLAN.md
 
 # TypeScript cache
 *.tsbuildinfo
+.DS_Store

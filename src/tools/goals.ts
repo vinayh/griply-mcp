@@ -8,7 +8,7 @@ import {
   completeGoalSchema,
   getGoalProgressSchema,
 } from "../types.js";
-import { jsonResult, textResult } from "../utils.js";
+import { jsonResult, textResult } from "../mcp.js";
 
 export function registerGoalTools(server: McpServer): void {
   server.tool("list_goals", "List goals, optionally filtered by life area", listGoalsSchema.shape,

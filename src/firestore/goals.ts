@@ -12,17 +12,9 @@ import {
 } from "firebase/firestore";
 import { getDb } from "../firebase/client.js";
 import type { Goal } from "../types.js";
-import {
-  TASK_TYPE,
-  timestampToISO,
-  str,
-  firstId,
-  makeRoles,
-  dateToTimestamp,
-  goalsRef,
-  tasksRef,
-  userFilter,
-} from "../utils.js";
+import { TASK_TYPE, makeRoles, goalsRef, tasksRef, userFilter } from "./refs.js";
+import { str, firstId } from "../converters.js";
+import { dateToTimestamp, timestampToISO } from "../datetime.js";
 
 function parseMetric(metric: unknown): Pick<Goal, "metricType" | "targetValue" | "currentValue" | "unit"> {
   if (!metric || typeof metric !== "object") return {};
@@ -127,8 +119,7 @@ export async function createGoal(
 ): Promise<Goal> {
   const docRef = doc(goalsRef());
 
-  await setDoc(docRef, {
-    id: docRef.id,
+  const data: Record<string, unknown> = {
     name: params.name,
     description: params.goalDescription || null,
     lifeAreaId: params.lifeAreaId || null,
@@ -139,29 +130,24 @@ export async function createGoal(
     deadline: params.deadline ? dateToTimestamp(params.deadline) : null,
     color: params.colorHex || "inherit-life-area",
     iconName: params.icon || null,
-    image: null,
     metric: null,
-    frozenAt: null,
     archivedAt: null,
     completedAt: null,
     taskCount: 0,
+  };
+
+  await setDoc(docRef, {
+    id: docRef.id,
+    ...data,
+    image: null,
+    frozenAt: null,
     completedTaskCount: 0,
     roles: makeRoles(uid),
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
 
-  return {
-    id: docRef.id,
-    name: params.name,
-    description: params.goalDescription,
-    lifeAreaId: params.lifeAreaId,
-    colorHex: params.colorHex,
-    icon: params.icon,
-    isArchived: false,
-    isCompleted: false,
-    taskCount: 0,
-  };
+  return docToGoal(docRef.id, data);
 }
 
 export async function completeGoal(goalId: string): Promise<void> {

@@ -11,14 +11,9 @@ import {
 } from "firebase/firestore";
 import { getDb } from "../firebase/client.js";
 import type { Habit } from "../types.js";
-import {
-  TASK_TYPE,
-  docToHabit,
-  getTodayStr,
-  getCurrentSchedule,
-  tasksRef,
-  userFilter,
-} from "../utils.js";
+import { TASK_TYPE, tasksRef, userFilter } from "./refs.js";
+import { docToHabit } from "../converters.js";
+import { getTodayStr } from "../datetime.js";
 
 export async function listHabits(uid: string): Promise<Habit[]> {
   const todayStr = getTodayStr();
@@ -49,7 +44,9 @@ export async function addHabitOccurrence(
   const schedules = data.schedules as Array<Record<string, unknown>> | null;
   if (!schedules?.length) throw new Error("Habit has no schedules");
 
-  const targetDate = params.date || new Date().toISOString().split("T")[0];
+  // targetDate defaults to today in the user's tz; the entry is anchored at T23:59:59Z so its
+  // UTC date equals targetDate, which is how countTodayEntries reads it back.
+  const targetDate = params.date || getTodayStr();
   const newEntry = {
     id: crypto.randomUUID(),
     state: params.status || "complete",

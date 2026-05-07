@@ -13,58 +13,48 @@ import {
   type QueryConstraint,
 } from "firebase/firestore";
 import { getDb } from "../firebase/client.js";
-import type { Task } from "../types.js";
+import type { Task, TaskFilter } from "../types.js";
+import { TASK_TYPE, makeRoles, tasksRef, relationshipsRef, userFilter } from "./refs.js";
+import { docToTask, isTaskDueToday } from "../converters.js";
 import {
-  TASK_TYPE,
-  docToTask,
-  isTaskDueToday,
-  getTodayStr,
+  MS_PER_DAY,
+  MS_PER_MINUTE,
   dateToDeadlineTimestamp,
   dateToStartTimestamp,
+  getTodayStr,
   timeStringToMs,
-  makeRoles,
-  tasksRef,
-  relationshipsRef,
-  userFilter,
-  MS_PER_MINUTE,
-} from "../utils.js";
+} from "../datetime.js";
 
 export async function listTasks(
   uid: string,
-  opts: { filter: string; goalId?: string; tagId?: string }
+  opts: { filter: TaskFilter; goalId?: string; tagId?: string }
 ): Promise<Task[]> {
-  const constraints: QueryConstraint[] = [
-    userFilter(uid),
-    where("type", "==", TASK_TYPE.TODO),
-  ];
+  const base: QueryConstraint[] = [userFilter(uid), where("type", "==", TASK_TYPE.TODO)];
 
+  let constraints: QueryConstraint[];
   switch (opts.filter) {
     case "today":
     case "upcoming":
     case "all":
-      constraints.push(where("completedAt", "==", null));
+      constraints = [...base, where("completedAt", "==", null)];
       break;
     case "inbox":
-      constraints.push(where("completedAt", "==", null));
-      constraints.push(where("goalId", "==", null));
-      constraints.push(where("lifeAreaId", "==", null));
+      constraints = [
+        ...base,
+        where("completedAt", "==", null),
+        where("goalId", "==", null),
+        where("lifeAreaId", "==", null),
+      ];
       break;
     case "completed":
-      constraints.length = 0;
-      constraints.push(userFilter(uid));
-      constraints.push(where("type", "==", TASK_TYPE.TODO));
-      constraints.push(
-        where("completedAt", ">=", Timestamp.fromDate(new Date(Date.now() - 30 * 86_400_000)))
-      );
-      break;
-    default:
-      constraints.push(where("completedAt", "==", null));
+      constraints = [
+        ...base,
+        where("completedAt", ">=", Timestamp.fromDate(new Date(Date.now() - 30 * MS_PER_DAY))),
+      ];
       break;
   }
 
-  if (opts.goalId) {
-    constraints.push(where("goalId", "==", opts.goalId));
-  }
+  if (opts.goalId) constraints.push(where("goalId", "==", opts.goalId));
 
   const snapshot = await getDocs(
     query(tasksRef(), ...constraints, orderBy("createdAt", "asc"))
@@ -126,23 +116,26 @@ export async function createTask(
       }
     : null;
 
-  await setDoc(docRef, {
-    id: docRef.id,
+  const data: Record<string, unknown> = {
     name: params.name,
     description: params.taskDescription || null,
     type: TASK_TYPE.TODO,
     priority: params.priority?.toLowerCase() || "none",
-    startDate: Timestamp.fromDate(new Date()),
     timeslot,
     endStrategy: params.startDate
       ? { completionCount: null, deadline: dateToStartTimestamp(params.startDate) }
       : null,
-    deadlineDeadline: params.deadline
-      ? dateToDeadlineTimestamp(params.deadline)
-      : null,
+    deadlineDeadline: params.deadline ? dateToDeadlineTimestamp(params.deadline) : null,
     goalId: params.goalId || null,
     lifeAreaId: params.lifeAreaId || null,
     parentIds: params.parentTaskId ? [params.parentTaskId] : null,
+    completedAt: null,
+  };
+
+  await setDoc(docRef, {
+    id: docRef.id,
+    ...data,
+    startDate: Timestamp.fromDate(new Date()),
     sectionId: null,
     iconName: null,
     reminderTime: null,
@@ -151,25 +144,12 @@ export async function createTask(
     duration: null,
     frozenAt: null,
     archivedAt: null,
-    completedAt: null,
     roles: makeRoles(uid),
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
 
-  return {
-    id: docRef.id,
-    name: params.name,
-    description: params.taskDescription,
-    priority: params.priority,
-    startDate: params.startDate,
-    startTime: params.startTime,
-    duration: params.duration,
-    deadline: params.deadline,
-    goalId: params.goalId,
-    lifeAreaId: params.lifeAreaId,
-    isCompleted: false,
-  };
+  return docToTask(docRef.id, data);
 }
 
 export async function updateTask(

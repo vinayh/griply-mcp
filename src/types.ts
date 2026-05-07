@@ -7,7 +7,6 @@ export interface Goal {
   name: string;
   description?: string;
   lifeAreaId?: string;
-  lifeAreaName?: string;
   parentGoalId?: string;
   startDate?: string;
   deadline?: string;
@@ -20,8 +19,6 @@ export interface Goal {
   isFavorite?: boolean;
   isArchived?: boolean;
   isCompleted?: boolean;
-  progress?: number;
-  subgoals?: Goal[];
   taskCount?: number;
 }
 
@@ -35,11 +32,9 @@ export interface Task {
   duration?: number;
   deadline?: string;
   goalId?: string;
-  goalName?: string;
   lifeAreaId?: string;
   parentTaskId?: string;
   isCompleted?: boolean;
-  subtasks?: Task[];
 }
 
 export interface Habit {
@@ -49,24 +44,16 @@ export interface Habit {
   targetPeriod?: string;
   targetCount?: number;
   schedulePeriod?: string;
-  scheduleDays?: string[];
   startDate?: string;
   startTime?: string;
   duration?: number;
   priority?: string;
   icon?: string;
   goalId?: string;
-  goalName?: string;
   lifeAreaId?: string;
   isArchived?: boolean;
   completedToday?: boolean;
   todayCount?: number;
-}
-
-export interface HabitOccurrence {
-  habitId: string;
-  date: string;
-  status?: string;
 }
 
 export interface TodaySummary {
@@ -115,12 +102,13 @@ export const getGoalProgressSchema = z.object({
 });
 
 // Tasks
+export const TASK_FILTERS = ["today", "upcoming", "inbox", "all", "completed"] as const;
+export type TaskFilter = (typeof TASK_FILTERS)[number];
+
 export const listTasksSchema = z.object({
-  filter: z
-    .string()
-    .describe(
-      'Task filter: "today", "upcoming", "inbox", "all", or "completed"'
-    ),
+  filter: z.enum(TASK_FILTERS).describe(
+    'Task filter: "today", "upcoming", "inbox", "all", or "completed"'
+  ),
   goalId: z.string().optional().describe("Filter by goal ID"),
   tagId: z.string().optional().describe("Filter by tag ID"),
 });

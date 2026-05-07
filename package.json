@@ -1,6 +1,6 @@
 {
   "name": "griply-mcp",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "MCP server for Griply goal/task/habit management via Firebase",
   "type": "module",
   "main": "src/index.ts",

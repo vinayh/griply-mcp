@@ -8,7 +8,7 @@ import { registerAllTools } from "./tools/index.js";
 function createServer(): McpServer {
   const server = new McpServer({
     name: "griply-mcp",
-    version: "0.2.0", // x-release-please-version
+    version: "0.2.1", // x-release-please-version
   });
   registerAllTools(server);
   return server;

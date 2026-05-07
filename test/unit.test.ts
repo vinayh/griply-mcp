@@ -690,57 +690,100 @@ describe("docToHabit rrule parsing", () => {
   });
 });
 
-// ── ensureAuth env var check (auth.ts lines 13-15) ──
+// ── Griply auth credential resolution ──
 
-describe("ensureAuth", () => {
-  it("throws when GRIPLY_EMAIL and GRIPLY_PASSWORD are not set", async () => {
+describe("resolveGriplyCredentials", () => {
+  async function withGriplyEnv<T>(
+    email: string | undefined,
+    password: string | undefined,
+    fn: () => Promise<T>
+  ): Promise<T> {
     const savedEmail = process.env.GRIPLY_EMAIL;
     const savedPassword = process.env.GRIPLY_PASSWORD;
-    delete process.env.GRIPLY_EMAIL;
-    delete process.env.GRIPLY_PASSWORD;
+
+    if (email === undefined) delete process.env.GRIPLY_EMAIL;
+    else process.env.GRIPLY_EMAIL = email;
+    if (password === undefined) delete process.env.GRIPLY_PASSWORD;
+    else process.env.GRIPLY_PASSWORD = password;
+
     try {
-      const { ensureAuth } = await import("../src/firebase/auth.js");
-      await expect(ensureAuth()).rejects.toThrow(
-        "GRIPLY_EMAIL and GRIPLY_PASSWORD environment variables are required"
-      );
+      return await fn();
     } finally {
-      if (savedEmail) process.env.GRIPLY_EMAIL = savedEmail;
-      if (savedPassword) process.env.GRIPLY_PASSWORD = savedPassword;
+      if (savedEmail === undefined) delete process.env.GRIPLY_EMAIL;
+      else process.env.GRIPLY_EMAIL = savedEmail;
+      if (savedPassword === undefined) delete process.env.GRIPLY_PASSWORD;
+      else process.env.GRIPLY_PASSWORD = savedPassword;
     }
+  }
+
+  it("uses Bun secrets before env vars", async () => {
+    await withGriplyEnv("env@example.com", "env-secret", async () => {
+      const { resolveGriplyCredentials } = await import("../src/firebase/auth.js");
+      const credentials = await resolveGriplyCredentials(async (_service, name) => {
+        if (name === "GRIPLY_EMAIL") return "secret@example.com";
+        if (name === "GRIPLY_PASSWORD") return "secret-password";
+        return null;
+      });
+
+      expect(credentials).toEqual({
+        email: "secret@example.com",
+        password: "secret-password",
+      });
+    });
+  });
+
+  it("falls back to env vars when Bun secrets are not set", async () => {
+    await withGriplyEnv("env@example.com", "env-secret", async () => {
+      const { resolveGriplyCredentials } = await import("../src/firebase/auth.js");
+      const credentials = await resolveGriplyCredentials(async () => null);
+
+      expect(credentials).toEqual({
+        email: "env@example.com",
+        password: "env-secret",
+      });
+    });
+  });
+
+  it("falls back to env vars for individual unset Bun secrets", async () => {
+    await withGriplyEnv("env@example.com", "env-secret", async () => {
+      const { resolveGriplyCredentials } = await import("../src/firebase/auth.js");
+      const credentials = await resolveGriplyCredentials(async (_service, name) => {
+        if (name === "GRIPLY_EMAIL") return "secret@example.com";
+        return null;
+      });
+
+      expect(credentials).toEqual({
+        email: "secret@example.com",
+        password: "env-secret",
+      });
+    });
+  });
+
+  it("throws when Bun secrets and env vars are not set", async () => {
+    await withGriplyEnv(undefined, undefined, async () => {
+      const { resolveGriplyCredentials } = await import("../src/firebase/auth.js");
+      await expect(resolveGriplyCredentials(async () => null)).rejects.toThrow(
+        "Griply auth credentials are required in Bun secrets"
+      );
+    });
   });
 
   it("throws when only GRIPLY_EMAIL is set", async () => {
-    const savedEmail = process.env.GRIPLY_EMAIL;
-    const savedPassword = process.env.GRIPLY_PASSWORD;
-    process.env.GRIPLY_EMAIL = "test@example.com";
-    delete process.env.GRIPLY_PASSWORD;
-    try {
-      const { ensureAuth } = await import("../src/firebase/auth.js");
-      await expect(ensureAuth()).rejects.toThrow(
-        "GRIPLY_EMAIL and GRIPLY_PASSWORD environment variables are required"
+    await withGriplyEnv("test@example.com", undefined, async () => {
+      const { resolveGriplyCredentials } = await import("../src/firebase/auth.js");
+      await expect(resolveGriplyCredentials(async () => null)).rejects.toThrow(
+        "Griply auth credentials are required in Bun secrets"
       );
-    } finally {
-      if (savedEmail) process.env.GRIPLY_EMAIL = savedEmail;
-      else delete process.env.GRIPLY_EMAIL;
-      if (savedPassword) process.env.GRIPLY_PASSWORD = savedPassword;
-    }
+    });
   });
 
   it("throws when only GRIPLY_PASSWORD is set", async () => {
-    const savedEmail = process.env.GRIPLY_EMAIL;
-    const savedPassword = process.env.GRIPLY_PASSWORD;
-    delete process.env.GRIPLY_EMAIL;
-    process.env.GRIPLY_PASSWORD = "secret";
-    try {
-      const { ensureAuth } = await import("../src/firebase/auth.js");
-      await expect(ensureAuth()).rejects.toThrow(
-        "GRIPLY_EMAIL and GRIPLY_PASSWORD environment variables are required"
+    await withGriplyEnv(undefined, "secret", async () => {
+      const { resolveGriplyCredentials } = await import("../src/firebase/auth.js");
+      await expect(resolveGriplyCredentials(async () => null)).rejects.toThrow(
+        "Griply auth credentials are required in Bun secrets"
       );
-    } finally {
-      if (savedEmail) process.env.GRIPLY_EMAIL = savedEmail;
-      if (savedPassword) process.env.GRIPLY_PASSWORD = savedPassword;
-      else delete process.env.GRIPLY_PASSWORD;
-    }
+    });
   });
 });
 

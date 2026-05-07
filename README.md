@@ -29,9 +29,18 @@ export const firebaseConfig = {
 
 You can extract these values from the Griply web app's JavaScript bundle.
 
-### Environment Variables
+### Auth Secrets
 
-Create a `.env` file:
+Store your Griply auth credentials with Bun's Secrets API:
+
+```bash
+bun -e 'await Bun.secrets.set({ service: "griply-mcp", name: "GRIPLY_EMAIL", value: "your-email@example.com" })'
+bun -e 'await Bun.secrets.set({ service: "griply-mcp", name: "GRIPLY_PASSWORD", value: "your-password" })'
+```
+
+Bun stores these in your OS credential store: Keychain on macOS, libsecret on Linux, and Credential Manager on Windows.
+
+If Bun secrets are not set, the server falls back to environment variables. Create a `.env` file if you prefer that path or need it for CI/deployment:
 
 ```
 GRIPLY_EMAIL=your-email@example.com
@@ -49,12 +58,14 @@ Add to `~/.claude/settings.json`:
 {
   "mcpServers": {
     "griply": {
-      "command": "sh",
-      "args": ["-c", "export $(grep GRIPLY_ /path/to/griply-mcp/.env | xargs) && bun /path/to/griply-mcp/src/index.ts"]
+      "command": "bun",
+      "args": ["/path/to/griply-mcp/src/index.ts"]
     }
   }
 }
 ```
+
+If you use `.env` fallback instead of Bun secrets, keep exporting the `GRIPLY_` variables before launching the server.
 
 ## Tools
 
